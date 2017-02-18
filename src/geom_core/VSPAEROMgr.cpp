@@ -9,13 +9,9 @@
 
 #include "VSPAEROMgr.h"
 #include "ParmMgr.h"
-#include "Vehicle.h"
-#include "VehicleMgr.h"
 #include "StlHelper.h"
-#include "APIDefines.h"
 #include "WingGeom.h"
 #include "MeshGeom.h"
-#include "APIDefines.h"
 
 #include "StringUtil.h"
 #include "FileUtil.h"
@@ -1184,7 +1180,7 @@ void VSPAEROMgrSingleton::ReadLoadFile( string filename, vector <string> &res_id
     std::vector< std::string > data_string_array;
     std::vector< std::vector< double > > data_array;
 
-    double cref;
+    double cref = 1.0;
 
     char seps[]   = " :,\t\n";
     while ( !feof( fp ) )
@@ -1367,7 +1363,7 @@ void VSPAEROMgrSingleton::ReadStabFile( string filename, vector <string> &res_id
                 else
                 {
                     //This is a continuation of the current table and add this row to the results manager
-                    for ( unsigned int i_field = 1; i_field < data_string_array.size() - 1; i_field++ )
+                    for ( unsigned int i_field = 1; i_field < data_string_array.size(); i_field++ )
                     {
                         //attempt to read a double if that fails then treat it as a string result
                         double temp_val = 0;
