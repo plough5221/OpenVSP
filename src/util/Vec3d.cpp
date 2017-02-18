@@ -19,6 +19,8 @@ using std::cout;
 using std::endl;
 using std::vector;
 
+#include <algorithm>
+
 //****** Constructor:  vec3d x() ******//
 vec3d::vec3d()
 {
@@ -142,6 +144,13 @@ vec3d operator-( const vec3d& a, const vec3d& b )
 
 //******* x = a * b ******//
 vec3d operator*( const vec3d& a, double b )
+{
+    vec3d ret( a.v[0] * b, a.v[1] * b, a.v[2] * b );
+    return ret;
+}
+
+//******* x = a * b ******//
+vec3d operator*( double b, const vec3d& a )
 {
     vec3d ret( a.v[0] * b, a.v[1] * b, a.v[2] * b );
     return ret;
@@ -1156,7 +1165,7 @@ double pointSegDistSquared( vec3d& p, vec3d& sp0, vec3d& sp1, double* t )
 
 }
 
-vec2d MapToPlane( vec3d & P, vec3d & B, vec3d & e0, vec3d & e1 )
+vec2d MapToPlane( const vec3d & P, const vec3d & B, const vec3d & e0, const vec3d & e1 )
 {
     vec2d result;
     vec3d BmP = B - P;
@@ -1182,7 +1191,7 @@ vec2d MapToPlane( vec3d & P, vec3d & B, vec3d & e0, vec3d & e1 )
     return result;
 }
 
-vec3d MapFromPlane( vec2d & uw, vec3d & B, vec3d & e0, vec3d & e1 )
+vec3d MapFromPlane( const vec2d & uw, const vec3d & B, const vec3d & e0, const vec3d & e1 )
 {
     vec3d result = B + e0 * uw.x() + e1 * uw.y();
     return result;
@@ -1358,4 +1367,54 @@ void BilinearWeights( const vec3d & p0, const vec3d & p1, const vec3d & p, std::
     weights[2] = w3;
     weights[3] = w2;
 
+}
+
+double tri_tri_min_dist( vec3d & v0, vec3d & v1, vec3d & v2, vec3d & v3, vec3d & v4, vec3d & v5 )
+{
+    double d;
+    double min_dist = 1.0e12;
+
+    d = pnt_tri_min_dist( v0, v1, v2, v3 );     min_dist = std::min( d, min_dist );
+    d = pnt_tri_min_dist( v0, v1, v2, v4 );     min_dist = std::min( d, min_dist );
+    d = pnt_tri_min_dist( v0, v1, v2, v5 );     min_dist = std::min( d, min_dist );
+
+    d = pnt_tri_min_dist( v3, v4, v5, v0 );     min_dist = std::min( d, min_dist );
+    d = pnt_tri_min_dist( v3, v4, v5, v1 );     min_dist = std::min( d, min_dist );
+    d = pnt_tri_min_dist( v3, v4, v5, v2 );     min_dist = std::min( d, min_dist );
+
+    return min_dist;
+}
+
+double pnt_tri_min_dist( vec3d & v0, vec3d & v1, vec3d & v2, vec3d & pnt )
+{
+    vec2d uw = MapToPlane( pnt, v0, v1-v0, v2-v0 );
+    vec3d plnpnt = MapFromPlane( uw, v0, v1-v0, v2-v0 );
+
+    //====  Check If Point In Tri ====//
+    if ( uw[0] >= 0.0 && uw[0] <= 1.0 && uw[1] >= 0.0 && uw[1] <= 1.0 && 
+         uw[0] + uw[1] <= 1.0 )
+    {
+        return dist( pnt, plnpnt );
+    }
+    double t;
+    double d01 = pointSegDistSquared( pnt, v0, v1, &t );
+    double d12 = pointSegDistSquared( pnt, v1, v2, &t );
+    double d20 = pointSegDistSquared( pnt, v2, v0, &t );
+
+    if ( d01 < d12 && d01 < d20 )
+        return sqrt(d01);
+    else if ( d12 < d20 )
+        return sqrt(d12);
+    else 
+        return sqrt(d20);
+}
+
+namespace std
+{
+string to_string( const vec3d &v)
+{
+    return "x: " + std::to_string( v.x() ) +
+          " y: " + std::to_string( v.y() ) +
+          " z: " + std::to_string( v.z() );
+}
 }

@@ -1,0 +1,152 @@
+//
+// This file is released under the terms of the NASA Open Source Agreement (NOSA)
+// version 1.3 as detailed in the LICENSE file which accompanies this software.
+//
+//////////////////////////////////////////////////////////////////////
+
+#ifndef VSP_GEOM_H
+#define VSP_GEOM_H
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <math.h>
+#include <assert.h>
+#include "utils.H"
+#include "VSP_Surface.H"
+#include "VSP_Agglom.H"
+#include "RotorDisk.H"
+
+#define   VLM_MODEL 1
+#define PANEL_MODEL 2
+
+#define SYM_X 1
+#define SYM_Y 2
+#define SYM_Z 3
+
+// Definition of the VSP_GEOM_H class
+
+class VSP_GEOM {
+
+private:
+
+    // Debug
+    
+    int Verbose_;
+    
+    // Function data
+    
+    void init(void);
+    
+    // Model type
+    
+    int ModelType_;
+    
+    // Symmetry flag
+    
+    int DoSymmetryPlaneSolve_;
+    
+    // Geometry data
+    
+    int NumberOfComponents_;
+    
+    // Wing Data
+    
+    int NumberOfDegenWings_;
+
+    // Body Data
+    
+    int NumberOfDegenBodies_;
+    
+    // CART3D data
+    
+    int NumberOfCart3dSurfaces_;
+    
+    // Rotor Disk Data
+    
+    int NumberOfRotors_;
+    ROTOR_DISK *RotorDisk_;
+
+    // Surface Data
+    
+    int NumberOfSurfaces_;
+    
+    int NumberOfSurfacePatches_;
+   
+    VSP_SURFACE *VSP_Surface_;
+    
+    // Merged global mesh
+    
+    int NumberOfGridLevels_;
+    VSP_GRID **Grid_;
+    
+    // Agglomeration routines
+    
+    void AgglomerateMeshes(void);
+
+    // I/O
+    
+    void Read_CART3D_File(char *FileName);
+    void Read_VSP_Degen_File(char *FileName);
+    
+    // FEM Analysis
+    
+    int LoadDeformationFile_;
+    
+    // Control surface routines
+    
+    void FindControlSurfaceVortexLoops(void);
+
+public:
+
+    // Constructor, Destructor, Copy
+
+    VSP_GEOM(void);
+   ~VSP_GEOM(void);
+    VSP_GEOM(const VSP_GEOM &VSP_Geom);
+
+    // Copy function
+
+    VSP_GEOM& operator=(const VSP_GEOM &VSP_Geom);
+    
+    // Read in the VSP degenerate geometry file
+    
+    int ReadFile(char *FileName);
+    
+    // FEM
+
+    int &LoadDeformationFile(void) { return LoadDeformationFile_; };    
+ 
+    void LoadFEMDeformationData(char *FileName);
+    void FEMDeformGeometry(void);    
+
+    // Meshing
+    
+    void MeshGeom(void);
+
+    // Access to data
+    
+    int NumberOfComponents(void) { return NumberOfComponents_; };
+    
+    int NumberOfDegenWings(void) { return NumberOfDegenWings_; };
+
+    int NumberOfDegenBodies(void) { return NumberOfDegenBodies_; };
+
+    int NumberOfCart3dSurfaces(void) { return NumberOfCart3dSurfaces_; };
+ 
+    int NumberOfSurfaces(void) { return NumberOfSurfaces_; };
+    
+    VSP_SURFACE &VSP_Surface(int i) { return VSP_Surface_[i]; };
+    
+    int NumberOfGridLevels(void) { return NumberOfGridLevels_; };
+    VSP_GRID &Grid(void) { return *(Grid_[0]); };
+    VSP_GRID &Grid(int i) { return *(Grid_[i]); };
+    
+    int NumberOfRotors(void) { return NumberOfRotors_; };
+    ROTOR_DISK &RotorDisk(int i) { return RotorDisk_[i]; };
+    
+    int &DoSymmetryPlaneSolve(void) { return DoSymmetryPlaneSolve_; };
+
+};
+
+#endif

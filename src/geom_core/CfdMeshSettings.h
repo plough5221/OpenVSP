@@ -34,7 +34,7 @@ using namespace std;
 class CfdMeshSettings : public ParmContainer
 {
 public:
-	CfdMeshSettings();
+    CfdMeshSettings();
     virtual ~CfdMeshSettings();
 
     virtual xmlNodePtr EncodeXml( xmlNodePtr & node );
@@ -177,6 +177,7 @@ public:
     IntParm m_SelectedSetIndex;
 
     BoolParm m_ExportFileFlags[vsp::CFD_NUM_FILE_NAMES];
+    BoolParm m_XYZIntCurveFlag;
 
 protected:
 

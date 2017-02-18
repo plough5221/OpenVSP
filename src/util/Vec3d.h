@@ -182,10 +182,24 @@ public:
         return( vec3d( -v[0],  v[1],  v[2] ) );
     }
 
+    vec3d swap_xy() const
+    {
+        return( vec3d( v[1],  v[0],  v[2] ) );
+    }
+    vec3d swap_xz() const
+    {
+        return( vec3d( v[2],  v[1],  v[0] ) );
+    }
+    vec3d swap_yz() const
+    {
+        return( vec3d( v[0],  v[2],  v[1] ) );
+    }
+
     // x = a + b, x = a - b, a*scale, a/scale
     friend vec3d operator+( const vec3d& a, const vec3d& b );
     friend vec3d operator-( const vec3d& a, const vec3d& b );
     friend vec3d operator*( const vec3d& a, double b );
+    friend vec3d operator*( double b, const vec3d& a );
     friend vec3d operator*( const vec3d& a, const vec3d& b );
     friend vec3d operator/( const vec3d& a, double b );
 
@@ -233,8 +247,8 @@ public:
     friend double pointSegDistSquared( vec3d& p, vec3d& sp0, vec3d& sp1, double* t );
     friend vec3d  point_on_line( const vec3d & lp0, const vec3d & lp1, const double & t );
 
-    friend  vec2d MapToPlane( vec3d & p, vec3d & planeOrig, vec3d & planeVec1, vec3d & planeVec2 );
-    friend  vec3d MapFromPlane( vec2d & uw, vec3d & planeOrig, vec3d & planeVec1, vec3d & planeVec2 );
+    friend vec2d MapToPlane( const vec3d & p, const vec3d & planeOrig, const vec3d & planeVec1, const vec3d & planeVec2 );
+    friend vec3d MapFromPlane( const vec2d & uw, const vec3d & planeOrig, const vec3d & planeVec1, const vec3d & planeVec2 );
 
     friend int plane_half_space( vec3d & planeOrig, vec3d & planeNorm, vec3d & pnt );
 
@@ -244,6 +258,8 @@ public:
 
     friend vec3d BarycentricWeights( const vec3d & v0, const vec3d & v1, const vec3d & v2, const vec3d & p );
     friend void BilinearWeights( const vec3d & p0, const vec3d & p1, const vec3d & p, std::vector< double > & weights );
+    friend double tri_tri_min_dist( vec3d & v0, vec3d & v1, vec3d & v2, vec3d & v3, vec3d & v4, vec3d & v5 );
+    friend double pnt_tri_min_dist( vec3d & v0, vec3d & v1, vec3d & v2, vec3d & pnt );
 
 };
 
@@ -255,6 +271,11 @@ double angle( const vec3d& a, const vec3d& b );
 double signed_angle( const vec3d& a, const vec3d& b, const vec3d& ref );
 double cos_angle( const vec3d& a, const vec3d& b );
 vec3d RotateArbAxis( const vec3d & p, double theta, const vec3d & r );
+
+namespace std
+{
+string to_string( const vec3d &v);
+}
 
 #endif
 

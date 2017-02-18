@@ -22,6 +22,47 @@
 
 using std::string;
 
+bool NameCompare( const string &parmID_A, const string &parmID_B )
+{
+    Parm* pA = ParmMgr.FindParm( parmID_A );
+    Parm* pB = ParmMgr.FindParm( parmID_B );
+
+    if ( pA && pB )
+    {
+        string c_name_A, g_name_A, p_name_A, c_name_B, g_name_B, p_name_B;;
+        ParmMgr.GetNames( parmID_A, c_name_A, g_name_A, p_name_A );
+        ParmMgr.GetNames( parmID_B, c_name_B, g_name_B, p_name_B );
+
+        // Check container names first
+        if ( c_name_A.compare( c_name_B ) != 0 )
+        {
+            return c_name_A < c_name_B;
+        }
+
+        string cAID = pA->GetContainerID();
+        string cBID = pB->GetContainerID();
+
+        // Matching container names, sort by container ID
+        if ( cAID.compare( cBID ) != 0 )
+        {
+            return cAID < cBID;
+        }
+
+        // Matching ID, sort by group
+        if ( g_name_A.compare( g_name_B ) != 0 )
+        {
+            return g_name_A < g_name_B;
+        }
+
+        // Matching group, sort by parameter
+        if ( p_name_A.compare( p_name_B ) != 0 )
+        {
+            return p_name_A < p_name_B;
+        }
+
+    }
+    return ( false );
+}
 
 //=========================================================================//
 //=======================        Parm Container       =====================//
@@ -33,7 +74,6 @@ ParmContainer::ParmContainer()
     m_ID = GenerateID();
     m_Name = string( "Default" );
     m_LateUpdateFlag = true; // Force update first time through.
-    m_LinkableFlag = false;
     ParmMgr.AddParmContainer( this );
 }
 
@@ -294,8 +334,13 @@ string ParmContainer::FindParm( const string& parm_name, const string& group_nam
         for ( int i = 0 ; i < (int)pid_vec.size() ; i++ )
         {
             Parm* p = ParmMgr.FindParm( pid_vec[i] );
-            if ( p->GetName() == parm_name )
-                return pid_vec[i];
+            if ( p )
+            {
+                if ( p->GetName() == parm_name )
+                {
+                    return pid_vec[i];
+                }
+            }
         }
     }
 
@@ -422,7 +467,7 @@ void ParmContainer::AddLinkableParms( vector< string > & linkable_parm_vec, cons
     {
         Parm* p = ParmMgr.FindParm( m_ParmVec[i] );
 
-        if ( p && p->IsLinkable() )
+        if ( p )
         {
             if ( link_container_id.size() )
             {
@@ -581,7 +626,7 @@ string UserParmContainer::AddParm(int type, const string & name, const string & 
     Parm* p = ParmMgr.CreateParm( type );
     if ( p )
     {
-        p->Init( name, group, this, 0.0, -1.0e6, 1.0e6, true );
+        p->Init( name, group, this, 0.0, -1.0e6, 1.0e6 );
         p->SetDescript( "User Parm Descript" );
         m_UserParmVec.push_back( p );
         return p->GetID();

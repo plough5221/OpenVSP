@@ -97,6 +97,7 @@ FitModelScreen::FitModelScreen( ScreenMgr* mgr ) : TabScreen( mgr, 400, 469 + 10
     m_TargetGeomPicker.AddExcludeType( MESH_GEOM_TYPE );
     m_TargetGeomPicker.AddExcludeType( PT_CLOUD_GEOM_TYPE );
     m_TargetGeomPicker.AddExcludeType( BLANK_GEOM_TYPE );
+    m_TargetGeomPicker.AddExcludeType( HINGE_GEOM_TYPE );
     m_PickPtsLayout.AddGeomPicker( m_TargetGeomPicker );
 
     m_PickPtsLayout.SetFitWidthFlag( false );
@@ -335,32 +336,28 @@ bool FitModelScreen::Update()
             Geom* g = VehicleMgr.GetVehicle()->FindGeom( tpt->GetMatchGeom() );
             if( g )
             {
-                char *fix = "fix";
-                char *free = "free";
-
-                char *ut;
-                char *wt;
+                string ut;
+                string wt;
 
                 if( tpt->GetUType() == TargetPt::FIXED )
                 {
-                    ut = fix;
+                    ut = string( "fix" );
                 }
                 else
                 {
-                    ut = free;
+                    ut = string( "free" );
                 }
 
                 if( tpt->GetWType() == TargetPt::FIXED )
                 {
-                    wt = fix;
+                    wt = string( "fix" );
                 }
                 else
                 {
-                    wt = free;
+                    wt = string( "free" );
                 }
 
-
-                sprintf( str, "%s:%4.2f:%4.2f:%4.2f:%4.2f:%s:%4.2f:%s", g->GetName().c_str(), tpt->GetPt().x(), tpt->GetPt().y(), tpt->GetPt().z(), tpt->GetUW().x(), ut, tpt->GetUW().y(), wt );
+                sprintf( str, "%s:%4.2f:%4.2f:%4.2f:%4.2f:%s:%4.2f:%s", g->GetName().c_str(), tpt->GetPt().x(), tpt->GetPt().y(), tpt->GetPt().z(), tpt->GetUW().x(), ut.c_str(), tpt->GetUW().y(), wt.c_str() );
                 m_TargetPtBrowser->add( str );
             }
         }

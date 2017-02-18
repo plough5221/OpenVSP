@@ -126,11 +126,18 @@ void BasicScreen::SetTitle( const string& title )
 //=====================================================================//
 
 //==== Constructor ====//
-TabScreen::TabScreen( ScreenMgr* mgr, int w, int h, const string & title, int baseymargin ) :
+TabScreen::TabScreen( ScreenMgr* mgr, int w, int h, const string & title, int baseymargin, int basexmargin ) :
     BasicScreen( mgr, w, h, title )
 {
+    int topshift = 0;
     //==== Menu Tabs ====//
-    m_MenuTabs = new Fl_Tabs( 0, 25, w, h - 25 - baseymargin );
+    if ( baseymargin < 0 )
+    {
+        baseymargin = -baseymargin;
+        topshift = baseymargin;
+    }
+
+    m_MenuTabs = new Fl_Tabs( 0, 25 + topshift, w - basexmargin, h - 25 - baseymargin );
     m_MenuTabs->labelcolor( FL_BLUE );
 }
 
@@ -384,7 +391,7 @@ GeomScreen::GeomScreen( ScreenMgr* mgr, int w, int h, const string & title ) :
 
     m_XFormLayout.AddChoice( m_SymAncestorChoice, "About:", m_XFormLayout.GetButtonWidth() * 2 );
     m_XFormLayout.SetFitWidthFlag( false );
-    m_XFormLayout.AddButton( m_SymAncestorOriginToggle, "Origin" );
+    m_XFormLayout.AddButton( m_SymAncestorOriginToggle, "Attach" );
     m_XFormLayout.AddButton( m_SymAncestorObjectToggle, "Object" );
     m_XFormLayout.ForceNewLine();
     m_XFormLayout.AddYGap();
@@ -627,13 +634,19 @@ GeomScreen::GeomScreen( ScreenMgr* mgr, int w, int h, const string & title ) :
     m_SSConTestToggleGroup.AddButton(m_SSConOutsideButton.GetFlButton());
 
     m_SSConGroup.SetFitWidthFlag(true);
-    m_SSConGroup.SetSameLineFlag(false);
+    m_SSConGroup.SetSameLineFlag(true);
     m_SSConGroup.ForceNewLine();
+    m_SSConGroup.SetChoiceButtonWidth( m_SSConGroup.GetButtonWidth() );
 
     m_SSConSurfTypeChoice.AddItem("Upper");
     m_SSConSurfTypeChoice.AddItem("Lower");
     m_SSConSurfTypeChoice.AddItem("Both");
-    m_SSConGroup.AddChoice(m_SSConSurfTypeChoice, "Upper/Lower:");
+    m_SSConGroup.AddChoice(m_SSConSurfTypeChoice, "Upper/Lower", m_SSConGroup.GetButtonWidth() );
+
+    m_SSConGroup.AddButton( m_SSConLEFlagButton, "Leading Edge" );
+
+    m_SSConGroup.SetSameLineFlag(false);
+    m_SSConGroup.ForceNewLine();
 
     m_SSConGroup.AddYGap();
     m_SSConGroup.AddDividerBox( "Spanwise" );
@@ -667,6 +680,8 @@ GeomScreen::GeomScreen( ScreenMgr* mgr, int w, int h, const string & title ) :
 
     m_SSConGroup.AddSlider( m_SSConELenSlider, "End Length", 10.0, "%5.4f" );
     m_SSConGroup.AddSlider( m_SSConEFracSlider, "End Length/C", 1.0, "%5.4f" );
+
+    m_RotActive = true;
 }
 
 bool GeomScreen::Update()
@@ -713,6 +728,9 @@ bool GeomScreen::Update()
     //===== Rel of Abs ====//
     m_XFormAbsRelToggle.Update( geom_ptr->m_AbsRelFlag.GetID() );
     geom_ptr->DeactivateXForms();
+    m_XRotSlider.Activate();
+    m_YRotSlider.Activate();
+    m_ZRotSlider.Activate();
     if ( geom_ptr->m_AbsRelFlag() ==  GeomXForm::RELATIVE_XFORM )
     {
         m_XLocSlider.Update( 1, geom_ptr->m_XRelLoc.GetID(), geom_ptr->m_XLoc.GetID() );
@@ -732,6 +750,13 @@ bool GeomScreen::Update()
         m_ZRotSlider.Update( 2, geom_ptr->m_ZRelRot.GetID(), geom_ptr->m_ZRot.GetID() );
     }
     m_RotOriginSlider.Update( geom_ptr->m_Origin.GetID() );
+
+    if ( !m_RotActive )
+    {
+        m_XRotSlider.Deactivate();
+        m_YRotSlider.Deactivate();
+        m_ZRotSlider.Deactivate();
+    }
 
     //==== Symmetry ====//
     std::vector<std::string> ancestorNames;
@@ -874,6 +899,8 @@ bool GeomScreen::Update()
 
             m_SSConSAbsRelToggleGroup.Update(sscon->m_AbsRelFlag.GetID());
             m_SSConSEConstButton.Update(sscon->m_ConstFlag.GetID());
+
+            m_SSConLEFlagButton.Update(sscon->m_LEFlag.GetID());
 
             m_SSConSFracSlider.Deactivate();
             m_SSConSLenSlider.Deactivate();

@@ -21,66 +21,66 @@
 
 
 //==== Default Results Data ====//
-ResData::ResData()
+NameValData::NameValData()
 {
     Init( "Undefined" );
 }
 
 //==== Construtor With Name =====//
-ResData::ResData( const string & name )
+NameValData::NameValData( const string & name )
 {
     Init( name );
 }
 
 //==== Construtors With Name & Data =====//
-ResData::ResData( const string & name, int i_data )
+NameValData::NameValData( const string & name, int i_data )
 {
     Init( name, vsp::INT_DATA );
     m_IntData.push_back( i_data );
 }
-ResData::ResData( const string & name, double d_data )
+NameValData::NameValData( const string & name, double d_data )
 {
     Init( name, vsp::DOUBLE_DATA );
     m_DoubleData.push_back( d_data );
 }
-ResData::ResData( const string & name, const string & s_data )
+NameValData::NameValData( const string & name, const string & s_data )
 {
     Init( name, vsp::STRING_DATA );
     m_StringData.push_back( s_data );
 }
-ResData::ResData( const string & name, const vec3d & v_data )
+NameValData::NameValData( const string & name, const vec3d & v_data )
 {
     Init( name, vsp::VEC3D_DATA );
     m_Vec3dData.push_back( v_data );
 }
-ResData::ResData( const string & name, vector< int > & i_data )
+NameValData::NameValData( const string & name, vector< int > & i_data )
 {
     Init( name, vsp::INT_DATA );
     m_IntData = i_data;
 }
-ResData::ResData( const string & name, vector< double > & d_data )
+NameValData::NameValData( const string & name, vector< double > & d_data )
 {
     Init( name, vsp::DOUBLE_DATA );
     m_DoubleData = d_data;
 }
-ResData::ResData( const string & name, vector< string > & s_data )
+NameValData::NameValData( const string & name, vector< string > & s_data )
 {
     Init( name, vsp::STRING_DATA );
     m_StringData = s_data;
 }
-ResData::ResData( const string & name, vector< vec3d > & v_data )
+NameValData::NameValData( const string & name, vector< vec3d > & v_data )
 {
     Init( name, vsp::VEC3D_DATA );
     m_Vec3dData = v_data;
 }
 
-void ResData::Init( const string & name, int type, int index )
+void NameValData::Init( const string & name, int type, int index )
 {
     m_Name = name;
     m_Type = type;
 }
 
-int ResData::GetInt( int i ) const
+int NameValData::GetInt( int i ) const
 {
     if ( i < ( int )m_IntData.size() )
     {
@@ -88,7 +88,7 @@ int ResData::GetInt( int i ) const
     }
     return 0;
 }
-double ResData::GetDouble( int i ) const
+double NameValData::GetDouble( int i ) const
 {
     if ( i < ( int )m_DoubleData.size() )
     {
@@ -96,7 +96,7 @@ double ResData::GetDouble( int i ) const
     }
     return 0;
 }
-string ResData::GetString( int i ) const
+string NameValData::GetString( int i ) const
 {
     if ( i < ( int )m_StringData.size() )
     {
@@ -105,7 +105,7 @@ string ResData::GetString( int i ) const
     return string();
 }
 
-vec3d ResData::GetVec3d( int i ) const
+vec3d NameValData::GetVec3d( int i ) const
 {
     if ( i < ( int )m_Vec3dData.size() )
     {
@@ -120,10 +120,91 @@ vec3d ResData::GetVec3d( int i ) const
 //======================================================================================//
 
 
-Results::Results( const string & name, const string & id )
+NameValCollection::NameValCollection( const string & name, const string & id )
 {
     m_Name = name;
     m_ID = id;
+}
+
+//==== Add Data To Results - Can Have Data With The Same Name =====//
+void NameValCollection::Add( const NameValData & d )
+{
+    //==== Find Name ====//
+    string name = d.GetName();
+
+    map< string, vector< NameValData > >::iterator iter = m_DataMap.find( name );
+    if ( iter !=  m_DataMap.end() )     // Check For Duplicates
+    {
+        iter->second.push_back( d );
+    }
+    else
+    {
+        m_DataMap[name].push_back( d );
+    }
+}
+
+//==== Get Number of Data Entries For This Name ====//
+int NameValCollection::GetNumData( const string & name )
+{
+    map< string, vector< NameValData > >::iterator iter = m_DataMap.find( name );
+    if ( iter ==  m_DataMap.end() )
+    {
+        return 0;
+    }
+
+    return iter->second.size();
+}
+
+//==== Get Data Names ====//
+vector< string > NameValCollection::GetAllDataNames()
+{
+    vector< string > name_vec;
+    map< string, vector< NameValData > >::iterator iter;
+
+    for ( iter = m_DataMap.begin() ; iter != m_DataMap.end() ; iter++ )
+    {
+        name_vec.push_back( iter->first );
+    }
+    return name_vec;
+}
+
+//==== Find Res Data Given Name and Index ====//
+NameValData NameValCollection::Find( const string & name, int index )
+{
+    map< string, vector< NameValData > >::iterator iter = m_DataMap.find( name );
+
+    if ( iter !=  m_DataMap.end() )
+    {
+        if ( index >= 0 && index < ( int )( iter->second.size() ) )
+        {
+            return iter->second[index];
+        }
+    }
+    return NameValData();
+}
+
+//==== Find Res Data Given Name and Index ====//
+NameValData* NameValCollection::FindPtr( const string & name, int index )
+{
+    map< string, vector< NameValData > >::iterator iter = m_DataMap.find( name );
+
+    if ( iter !=  m_DataMap.end() )
+    {
+        if ( index >= 0 && index < ( int )( iter->second.size() ) )
+        {
+            return &( iter->second[index] );
+        }
+    }
+    return NULL;
+}
+
+
+//======================================================================================//
+//======================================================================================//
+//======================================================================================//
+
+Results::Results( const string & name, const string & id ) : NameValCollection( name, id )
+{
     SetDateTime();          // Set Time Stamp
 }
 
@@ -141,91 +222,28 @@ void Results::SetDateTime()
     m_Sec = now->tm_sec;
 }
 
-//==== Add Data To Results - Can Have Data With The Same Name =====//
-void Results::Add( const ResData & d )
-{
-    //==== Find Name ====//
-    string name = d.GetName();
-
-    map< string, vector< ResData > >::iterator iter = m_DataMap.find( name );
-    if ( iter !=  m_DataMap.end() )     // Check For Duplicates
-    {
-        iter->second.push_back( d );
-    }
-    else
-    {
-        m_DataMap[name].push_back( d );
-    }
-}
-
-//==== Get Number of Data Entries For This Name ====//
-int Results::GetNumData( const string & name )
-{
-    map< string, vector< ResData > >::iterator iter = m_DataMap.find( name );
-    if ( iter ==  m_DataMap.end() )
-    {
-        return 0;
-    }
-
-    return iter->second.size();
-}
-
-//==== Get Data Names ====//
-vector< string > Results::GetAllDataNames()
-{
-    vector< string > name_vec;
-    map< string, vector< ResData > >::iterator iter;
-
-    for ( iter = m_DataMap.begin() ; iter != m_DataMap.end() ; iter++ )
-    {
-        name_vec.push_back( iter->first );
-    }
-    return name_vec;
-}
-
-//==== Find Res Data Given Name and Index ====//
-ResData Results::Find( const string & name, int index )
-{
-    map< string, vector< ResData > >::iterator iter = m_DataMap.find( name );
-
-    if ( iter !=  m_DataMap.end() )
-    {
-        if ( index >= 0 && index < ( int )( iter->second.size() ) )
-        {
-            return iter->second[index];
-        }
-    }
-    return ResData();
-}
-
-//==== Find Res Data Given Name and Index ====//
-ResData* Results::FindPtr( const string & name, int index )
-{
-    map< string, vector< ResData > >::iterator iter = m_DataMap.find( name );
-
-    if ( iter !=  m_DataMap.end() )
-    {
-        if ( index >= 0 && index < ( int )( iter->second.size() ) )
-        {
-            return &( iter->second[index] );
-        }
-    }
-    return NULL;
-}
-
-
 //===== Write A CSV File With Everything =====//
 void Results::WriteCSVFile( const string & file_name )
 {
     FILE* fid = fopen( file_name.c_str(), "w" );
     if ( fid )
     {
+        WriteCSVFile( fid );
+        fclose( fid );          // Close File
+    }
+}
+
+void Results::WriteCSVFile( FILE* fid )
+{
+    if ( fid )
+    {
+
         fprintf( fid, "Results_Name,%s\n", m_Name.c_str() );
         fprintf( fid, "Results_Timestamp,%ld\n", m_Timestamp );
         fprintf( fid, "Results_Date,%d,%d,%d\n", m_Month, m_Day, m_Year );
         fprintf( fid, "Results_Time,%d,%d,%d\n", m_Hour, m_Min, m_Sec );
 
-        map< string, vector< ResData > >::iterator iter;
+        map< string, vector< NameValData > >::iterator iter;
         for ( iter = m_DataMap.begin() ; iter != m_DataMap.end() ; iter++ )
         {
             for ( int i = 0 ; i < ( int )iter->second.size() ; i++ )
@@ -263,7 +281,6 @@ void Results::WriteCSVFile( const string & file_name )
                 fprintf( fid, "\n" );
             }
         }
-        fclose( fid );          // Close File
     }
 }
 
@@ -441,7 +458,7 @@ void Results::WriteDragBuildFile( const string & file_name )
     }
 }
 
-void Results::WriteSliceFile( const string & file_name, int type )
+void Results::WriteSliceFile( const string & file_name )
 {
     FILE* fid = fopen( file_name.c_str(), "w" );
     if ( fid )
@@ -466,50 +483,108 @@ void Results::WriteSliceFile( const string & file_name, int type )
         vec3d norm_axis = Find( "Axis_Vector" ).GetVec3d( 0 );
         fprintf( fid, "%1.5f %1.5f %1.5f Axis Vector\n", norm_axis.x(), norm_axis.y(), norm_axis.z() );
 
-        if ( type == vsp::SLICE_PLANAR )
+        fprintf( fid, "\n" );
+        fprintf( fid, "    Loc    XCenter  YCenter  ZCenter         Area\n" );
+        for ( int s = 0 ; s <  Find( "Num_Slices" ).GetInt( 0 ) ; s++ )
         {
-            fprintf( fid, "\n" );
-            fprintf( fid, "    Loc    XCenter  YCenter  ZCenter         Area\n" );
-            for ( int s = 0 ; s <  Find( "Num_Slices" ).GetInt( 0 ) ; s++ )
-            {
-                vec3d area_center = Find( "Slice_Area_Center" ).GetVec3d( s );
-                fprintf( fid, "%9.3f %9.3f %9.3f %9.3f %9.3f\n", Find( "Slice_Loc" ).GetDouble( s ), area_center[0],
-                         area_center[1], area_center[2], Find( "Slice_Area" ).GetDouble( s ) );
-            }
+            vec3d area_center = Find( "Slice_Area_Center" ).GetVec3d( s );
+            fprintf( fid, "%9.3f %9.3f %9.3f %9.3f %9.3f\n", Find( "Slice_Loc" ).GetDouble( s ), area_center[0],
+                    area_center[1], area_center[2], Find( "Slice_Area" ).GetDouble( s ) );
         }
-        else if ( type == vsp::SLICE_AWAVE )
-        {
-            fprintf( fid, "\n" );
-            fprintf( fid, "           Loc        " );
-            int num_cone_sections = Find( "Num_Cone_Sections" ).GetInt( 0 );
-            for ( int i = 0; i < num_cone_sections ; i++ )
-            {
-                fprintf( fid, "        A%02d(%06.2f)", i, Find( "Slice_Loc" ).GetDouble( i ) );
-            }
-            fprintf( fid, "        TotalArea            Average\n" );
 
-            int num_slices = Find( "Num_Slices" ).GetInt( 0 );
-            for ( int s = 0 ; s < num_slices ; s++ )
-            {
-                fprintf( fid, "%19.8f", Find( "X_Loc", 0 ).GetDouble( s ) );
-
-                vector<double> slice_wet_area = Find( "Slice_Wet_Area", s ).GetDoubleData();
-                for ( int r = 0 ; r < ( int )slice_wet_area.size() ; r++ )
-                {
-                    fprintf( fid, " %19.8f", slice_wet_area[r] );
-                }
-
-                fprintf( fid, " %19.8f", Find( "Slice_Sum_Area", s ).GetDouble( 0 ) );
-                fprintf( fid, " %19.8f", Find( "Slice_Avg_Area", s ).GetDouble( 0 ) );
-                fprintf( fid, "\n" );
-            }
-        }
         fclose( fid );
     }
 
 }
 
+void Results::WriteWaveDragFile( const string & file_name )
+{
+    FILE* fid = fopen( file_name.c_str(), "w" );
+    if ( fid )
+    {
+        fprintf( fid, "...Wave Drag Slice...\n" );
 
+        fprintf( fid, "Inlet Area: %f\n", Find( "Inlet_Area" ).GetDouble( 0 ) );
+        fprintf( fid, "Exit Area: %f\n", Find( "Exit_Area" ).GetDouble( 0 ) );
+
+        int num_cone_sections = Find( "Num_Cone_Sections" ).GetInt( 0 );
+        int num_slices = Find( "Num_Slices" ).GetInt( 0 );
+
+        fprintf( fid, "\n" );
+        for ( int i = 0; i < num_cone_sections ; i++ )
+        {
+            fprintf( fid, "Theta: %6.2f, Start: %6.2f, End: %6.2f\n", Find( "Theta" ).GetDouble( i ), Find( "Start_X" ).GetDouble( i ), Find( "End_X" ).GetDouble( i ) );
+
+            for ( int s = 0 ; s < num_slices ; s++ )
+            {
+                fprintf( fid, "%19.8f, ", Find( "X_Norm" ).GetDouble( s ) );
+                fprintf( fid, "%19.8f", Find( "Slice_Area", i ).GetDouble( s ) );
+                fprintf( fid, "\n" );
+            }
+            fprintf( fid, "\n" );
+        }
+
+        double CD0w = Find( "CDWave" ).GetDouble( 0 );
+        fprintf( fid, "CDWave: %19.8f \n", CD0w );
+
+        fclose( fid );
+    }
+
+}
+
+void Results::WriteBEMFile( const string & file_name )
+{
+    FILE* fid = fopen( file_name.c_str(), "w" );
+    if ( fid )
+    {
+        fprintf( fid, "...BEM Propeller...\n" );
+
+        int num_sect = Find( "Num_Sections" ).GetInt( 0 );
+        int num_blade = Find( "Num_Blade" ).GetInt( 0 );
+        double diam = Find( "Diameter" ).GetDouble( 0 );
+        double beta34 = Find( "Beta34" ).GetDouble( 0 );
+        double feather = Find( "Feather" ).GetDouble( 0 );
+        vec3d cen = Find( "Center" ).GetVec3d( 0 );
+        vec3d norm = Find( "Normal" ).GetVec3d( 0 );
+
+        fprintf( fid, "Num_Sections: %d\n", num_sect );
+        fprintf( fid, "Num_Blade: %d\n", num_blade );
+        fprintf( fid, "Diameter: %.8f\n", diam );
+        fprintf( fid, "Beta 3/4 (deg): %.8f\n", beta34 );
+        fprintf( fid, "Feather (deg): %.8f\n", feather );
+        fprintf( fid, "Center: %.8f, %.8f, %.8f\n", cen.x(), cen.y(), cen.z() );
+        fprintf( fid, "Normal: %.8f, %.8f, %.8f\n", norm.x(), norm.y(), norm.z() );
+
+        vector < double > r_vec = Find( "Radius" ).GetDoubleData();
+        vector < double > chord_vec = Find( "Chord" ).GetDoubleData();
+        vector < double > twist_vec = Find( "Twist" ).GetDoubleData();
+        vector < double > rake_vec = Find( "Rake" ).GetDoubleData();
+        vector < double > skew_vec = Find( "Skew" ).GetDoubleData();
+
+        fprintf( fid, "\nRadius/R, Chord/R, Twist (deg), Rake/R, Skew/R\n" );
+        for ( int i = 0; i < num_sect; i++ )
+        {
+            fprintf( fid, "%.8f, %.8f, %.8f, %.8f, %.8f\n", r_vec[i], chord_vec[i], twist_vec[i], rake_vec[i], skew_vec[i] );
+        }
+
+        for ( int i = 0; i < num_sect; i++ )
+        {
+            char str[255];
+            sprintf( str, "%03d", i );
+            vector < double > xpts = Find( "XSection_" + string( str ) ).GetDoubleData();
+            vector < double > ypts = Find( "YSection_" + string( str ) ).GetDoubleData();
+
+            fprintf( fid, "\nSection %d X, Y\n", i );
+
+            for ( int j = 0; j < xpts.size(); j++ )
+            {
+                fprintf( fid, "%.8f, %.8f\n", xpts[j], ypts[j] );
+            }
+        }
+
+        fclose( fid );
+    }
+}
 
 //======================================================================================//
 //======================================================================================//
@@ -721,6 +796,23 @@ int ResultsMgrSingleton::GetNumData( const string & results_id, const string & d
     return results_ptr->GetNumData( data_name );
 }
 
+int ResultsMgrSingleton::GetResultsType( const string & results_id, const string & data_name )
+{
+    Results* results_ptr = FindResultsPtr( results_id );
+    if ( !results_ptr )
+    {
+        return vsp::INVALID_TYPE;
+    }
+
+    NameValData* rd_ptr = results_ptr->FindPtr( data_name );
+    if ( !rd_ptr )
+    {
+        return vsp::INVALID_TYPE;
+    }
+
+    return rd_ptr->GetType();
+}
+
 //==== Get The Names of All Results ====//
 vector< string > ResultsMgrSingleton::GetAllResultsNames()
 {
@@ -755,7 +847,7 @@ const vector<int> & ResultsMgrSingleton::GetIntResults( const string & results_i
         return m_DefaultIntVec;
     }
 
-    ResData* rd_ptr = results_ptr->FindPtr( name, index );
+    NameValData* rd_ptr = results_ptr->FindPtr( name, index );
     if ( !rd_ptr )
     {
         return m_DefaultIntVec;
@@ -773,7 +865,7 @@ const vector<double> & ResultsMgrSingleton::GetDoubleResults( const string & res
         return m_DefaultDoubleVec;
     }
 
-    ResData* rd_ptr = results_ptr->FindPtr( name, index );
+    NameValData* rd_ptr = results_ptr->FindPtr( name, index );
     if ( !rd_ptr )
     {
         return m_DefaultDoubleVec;
@@ -791,7 +883,7 @@ const vector<string> & ResultsMgrSingleton::GetStringResults( const string & res
         return m_DefaultStringVec;
     }
 
-    ResData* rd_ptr = results_ptr->FindPtr( name, index );
+    NameValData* rd_ptr = results_ptr->FindPtr( name, index );
     if ( !rd_ptr )
     {
         return m_DefaultStringVec;
@@ -809,7 +901,7 @@ const vector<vec3d> & ResultsMgrSingleton::GetVec3dResults( const string & resul
         return m_DefaultVec3dVec;
     }
 
-    ResData* rd_ptr = results_ptr->FindPtr( name, index );
+    NameValData* rd_ptr = results_ptr->FindPtr( name, index );
     if ( !rd_ptr )
     {
         return m_DefaultVec3dVec;
@@ -838,7 +930,7 @@ bool ResultsMgrSingleton::ValidDataNameIndex( const string & results_id, const s
         return false;
     }
 
-    ResData* rd_ptr = results_ptr->FindPtr( name, index );
+    NameValData* rd_ptr = results_ptr->FindPtr( name, index );
     if ( !rd_ptr )
     {
         return false;
@@ -860,18 +952,18 @@ void ResultsMgrSingleton::WriteTestResults()
 
 //      printf( "Timestamp = %d \n", res->GetTimestamp() );
 
-        res->Add( ResData( "Test_Int", s + 1 ) );
-        res->Add( ResData( "Test_Int", s + 2 ) );
-        res->Add( ResData( "Test_Double", ( s + 1 ) * 0.1 ) );
-        res->Add( ResData( "Test_String", "This Is A Test" ) );
-        res->Add( ResData( "Test_Vec3d", vec3d( s, s * 2, s * 4 ) ) );
+        res->Add( NameValData( "Test_Int", s + 1 ) );
+        res->Add( NameValData( "Test_Int", s + 2 ) );
+        res->Add( NameValData( "Test_Double", ( s + 1 ) * 0.1 ) );
+        res->Add( NameValData( "Test_String", "This Is A Test" ) );
+        res->Add( NameValData( "Test_Vec3d", vec3d( s, s * 2, s * 4 ) ) );
 
         vector< double > dvec;
         for ( int i = 0 ; i < 5 ; i++ )
         {
             dvec.push_back( i * ( s + 1 ) );
         }
-        res->Add( ResData( "Test_Double_Vec", dvec ) );
+        res->Add( NameValData( "Test_Double_Vec", dvec ) );
     }
 
 
@@ -916,4 +1008,28 @@ void ResultsMgrSingleton::TestSpeed()
 //  int del_t0 = tics1 - start_tics;
 //  int del_t1 = tics2 - tics1;
 //  printf(" Results Speed %d %d \n", del_t0, del_t1 );
+}
+
+
+int ResultsMgrSingleton::WriteCSVFile( const string & file_name, const vector < string > &resids )
+{
+    FILE* fid = fopen( file_name.c_str(), "w" );
+    if( fid )
+    {
+        for( unsigned int iRes=0; iRes<resids.size(); iRes++ )
+        {
+            Results* resptr = ResultsMgr.FindResultsPtr( resids[iRes] );
+            if( resptr )
+            {
+                // TODO print the name of the result to the file as a header for each result
+                resptr->WriteCSVFile( fid );    //append this result to the csv file
+            }
+        }
+        fclose( fid );          // Close File
+        return vsp::VSP_OK;
+    }
+    else
+    {
+        return vsp::VSP_FILE_WRITE_FAILURE;
+    }
 }

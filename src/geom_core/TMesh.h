@@ -294,13 +294,24 @@ public:
     {
         return area( m_N0->m_Pnt, m_N1->m_Pnt, m_N2->m_Pnt );
     }
-    virtual double ComputeAwArea()
+    virtual double ComputeYZArea()
     {
         vec3d t1, t2, t3;
         t1.set_xyz( 0.0, m_N0->m_Pnt.y(), m_N0->m_Pnt.z() );
         t2.set_xyz( 0.0, m_N1->m_Pnt.y(), m_N1->m_Pnt.z() );
         t3.set_xyz( 0.0, m_N2->m_Pnt.y(), m_N2->m_Pnt.z() );
         return area( t1, t2, t3 );
+    }
+
+    virtual TNode* GetTriNode( int i )
+    {
+        if ( i == 0 )
+            return m_N0;
+        if ( i == 1 )
+            return m_N1;
+        if ( i == 2 )
+            return m_N2;
+        return NULL;
     }
 
     virtual void ComputeCosAngles( double* ang0, double* ang1, double* ang2 );
@@ -365,6 +376,8 @@ public:
     virtual void AddLeafNodes( vector< TBndBox* > & leafVec );
 
     virtual void SegIntersect( vec3d & p0, vec3d & p1, vector< vec3d > & ipntVec );
+    virtual bool CheckIntersect( TBndBox* iBox );
+    virtual double MinDistance( TBndBox* iBox, double curr_min_dist );
 
 };
 
@@ -421,6 +434,7 @@ public:
 
     double m_TheoArea;
     double m_WetArea;
+    vector < double > m_CompAreaVec;
     double m_TheoVol;
     double m_GuessVol;
     double m_WetVol;
@@ -429,19 +443,21 @@ public:
     void LoadGeomAttributes( Geom* geomPtr );
     int  RemoveDegenerate();
     void Intersect( TMesh* tm, bool UWFlag = false );
+    bool CheckIntersect( TMesh* tm );
+    double MinDistance( TMesh* tm, double curr_min_dist );
     void Split();
     void DeterIntExt( vector< TMesh* >& meshVec );
     void DeterIntExtTri( TTri* tri, vector< TMesh* >& meshVec );
     void MassDeterIntExt( vector< TMesh* >& meshVec );
     void MassDeterIntExtTri( TTri* tri, vector< TMesh* >& meshVec );
-
-    int DeterIntExtPnt( const vec3d& pnt, vector< TMesh* >& meshVec, TMesh* ignoreMesh = 0 );   // 1 Interior 0 Exterior
+    void WaveDeterIntExt( vector< TMesh* >& meshVec );
+    void WaveDeterIntExtTri( TTri* tri, vector< TMesh* >& meshVec );
 
     void LoadBndBox();
 
     virtual double ComputeTheoArea();
     virtual double ComputeWetArea();
-    virtual double ComputeAwaveArea();
+    virtual double ComputeWaveDragArea( const std::map< string, int > &idmap );
     virtual double ComputeTheoVol();
     virtual double ComputeTrimVol();
 
@@ -465,6 +481,7 @@ public:
     bool m_DeleteMeFlag;
     vector< TTri* > m_NonClosedTriVec;
     virtual void MergeNonClosed( TMesh* tm );
+    virtual void MergeTMeshes( TMesh* tm );
     virtual void CheckIfClosed();
     virtual void BuildMergeMaps();
     virtual void BuildNodeMaps();

@@ -27,8 +27,8 @@ class ScreenMgr : MessageBase
 {
 public:
     enum { VSP_ADV_LINK_SCREEN,
-           VSP_AWAVE_SCREEN,
            VSP_BACKGROUND_SCREEN,
+           VSP_BEM_OPTIONS_SCREEN,
            VSP_CFD_MESH_SCREEN,
            VSP_CLIPPING_SCREEN,
            VSP_COMP_GEOM_SCREEN,
@@ -47,19 +47,25 @@ public:
            VSP_MANAGE_TEXTURE_SCREEN,
            VSP_MASS_PROP_SCREEN,
            VSP_MATERIAL_EDIT_SCREEN,
+           VSP_SNAP_TO_SCREEN,
            VSP_PARM_DEBUG_SCREEN,
            VSP_PARM_LINK_SCREEN,
            VSP_PARM_SCREEN,
+           VSP_PROJECTION_SCREEN,
            VSP_PSLICE_SCREEN,
            VSP_SCREENSHOT_SCREEN,
            VSP_SET_EDITOR_SCREEN,
            VSP_STEP_OPTIONS_SCREEN,
+           VSP_DXF_OPTIONS_SCREEN,
            VSP_STL_OPTIONS_SCREEN,
            VSP_TYPE_EDITOR_SCREEN,
            VSP_USER_PARM_SCREEN,
+           VSP_VAR_PRESET_SCREEN,
            VSP_VIEW_SCREEN,
+           VSP_VSPAERO_PLOT_SCREEN,
            VSP_VSPAERO_SCREEN,
            VSP_XSEC_SCREEN,
+           VSP_WAVEDRAG_SCREEN,
            VSP_NUM_SCREENS
          };
 
@@ -112,6 +118,8 @@ public:
     {
 //        ( ( MainVSPScreen* ) m_ScreenVec[VSP_MAIN_SCREEN] )->HideReturnToAPI();
     };
+
+    bool m_ShowPlotScreenOnce;
 
 protected:
 

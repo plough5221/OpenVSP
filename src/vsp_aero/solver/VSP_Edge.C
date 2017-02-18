@@ -77,8 +77,8 @@ void VSP_EDGE::init(void)
     
     Verbose_ = 0;
  
-    Wing_ = 0;
-    Body_ = 0;
+    DegenWing_ = 0;
+    DegenBody_ = 0;
     Node_ = 0;
 
     X1_ = 0.;
@@ -180,8 +180,9 @@ VSP_EDGE& VSP_EDGE::operator=(const VSP_EDGE &VSPEdge)
      
     // Surface type
     
-    Wing_           = VSPEdge.Wing_;
-    Body_           = VSPEdge.Body_;
+    DegenWing_      = VSPEdge.DegenWing_;
+    DegenBody_      = VSPEdge.DegenBody_;
+    Cart3DSurface_  = VSPEdge.Cart3DSurface_;
     Node_           = VSPEdge.Node_;
     
     // XYZ of end points
@@ -217,6 +218,7 @@ VSP_EDGE& VSP_EDGE::operator=(const VSP_EDGE &VSPEdge)
     Tolerance_4_ = VSPEdge.Tolerance_4_;
     
     return *this;
+    
 }
 
 /*##############################################################################
@@ -274,7 +276,7 @@ void VSP_EDGE::Setup_(VSP_NODE &Node1, VSP_NODE &Node2)
     Tolerance_1_ = MIN(1.e-4,Length_ / 1000.);
     Tolerance_2_ = Tolerance_1_ * Tolerance_1_;
     Tolerance_4_ = Tolerance_2_ * Tolerance_2_;
-    
+
     // Zero out forces
     
     Forces_[0] = Forces_[1] = Forces_[2] = 0.;
@@ -465,13 +467,13 @@ double VSP_EDGE::Fint(double &a, double &b, double &c, double &d, double &s)
     double R, F, Denom;
 
     R = a + b*s + c*s*s;
-    
+
     if ( ABS(d) < Tolerance_2_ || R < Tolerance_1_ ) return 0.;
 
     //  Denom = SGN(d)*MAX(ABS(d*sqrt(R),Tolerance_2_);
 
     Denom = d * sqrt(R);
-    
+
     F = 2.*(2.*c*s + b)/Denom;
 
     return F;
@@ -494,7 +496,7 @@ double VSP_EDGE::Gint(double &a, double &b, double &c, double &d, double &s)
     if ( ABS(d) < Tolerance_2_ || R < Tolerance_1_ ) return 0.;
 
     Denom = d * sqrt(R);
-    
+
     G = -2.*(2.*a+b*s)/Denom;
     
     return G;
@@ -636,7 +638,7 @@ void VSP_EDGE::FindLineConicIntersection(double &Xp, double &Yp, double &Zp,
 
 /*##############################################################################
 #                                                                              #
-#                          VSP_EDGE BoundVortex                                #
+#                   VSP_EDGE GeneralizedPrincipalPartOfDownWash                #
 #                                                                              #
 ##############################################################################*/
 
@@ -652,7 +654,7 @@ double VSP_EDGE::GeneralizedPrincipalPartOfDownWash(void)
     Theta = 0.5*PI - acos(Mag);
     
     T = tan(Theta);
-    
+ 
 //    printf("Mag, Theta, T: %lf %lf %lf \n",Mag,Theta,T);
     
     Arg = -Beta_2 - T*T;
@@ -662,7 +664,7 @@ double VSP_EDGE::GeneralizedPrincipalPartOfDownWash(void)
 ////printf("LocalSpacing_: %lf \n",LocalSpacing_);
 ////printf("Length_: %lf \n",Length_);
 
-    if ( Mach_ > 1. && Arg > 0. ) Ws = 0.5*sqrt(Arg)/LocalSpacing_;
+    if ( Mach_ > 1. && Arg > 0. ) Ws = 0.50*sqrt(Arg)*cos(Theta)/LocalSpacing_;
     
  //    if ( Mach_ > 1. && T > 0. ) Ws = 0.5*sqrt( -Beta_2 );  
  //   if ( Mach_ > 1. ) Ws = 0.5*sqrt( -Beta_2 )/Length_;  
@@ -699,9 +701,9 @@ void VSP_EDGE::CalculateTrefftzForces(double FreeStream[3])
 
     vector_cross(FreeStream, Vec_, Trefftz_Forces_);
    
-    Trefftz_Forces_[0] *= -Length_*Gamma_;
-    Trefftz_Forces_[1] *= -Length_*Gamma_;
-    Trefftz_Forces_[2] *= -Length_*Gamma_;
+    Trefftz_Forces_[0] *= Length_*Gamma_;
+    Trefftz_Forces_[1] *= Length_*Gamma_;
+    Trefftz_Forces_[2] *= Length_*Gamma_;
 
 }
 

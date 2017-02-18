@@ -18,6 +18,7 @@ INCLUDE_DIRECTORIES( ${VSP_SOURCE_DIR}
 	${GUI_AND_DRAW_INCLUDE_DIR}
 	${TRIANGLE_INCLUDE_DIR}
 	${NANOFLANN_INCLUDE_DIR}
+	${CLIPPER_INCLUDE_DIR}
 	${CPPTEST_INCLUDE_DIRS}
 	${LOAD_JPG_INCLUDE_DIR}
 	${SCREENS_INCLUDE_DIR}
@@ -54,7 +55,10 @@ IF( NOT VSP_NO_GRAPHICS )
 		sixseries
 		util
 		tritri
+		clipper
         Angelscript
+        cartesian
+        wavedragEL
 		${CPPTEST_LIBRARIES}
 		${LIBXML2_LIBRARIES}
 		${FLTK_LIBRARIES}
@@ -70,6 +74,7 @@ IF( NOT VSP_NO_GRAPHICS )
 
 	ADD_EXECUTABLE(apitest_g
 	apitest_main.cpp
+	../geom_api/APITestSuite.cpp
 	../vsp/main.h.in
 	)
 
@@ -84,10 +89,13 @@ IF( NOT VSP_NO_GRAPHICS )
 		triangle
 		util
 		tritri
+		clipper
         Angelscript
 		screens
 		xmlvsp
 		sixseries
+		cartesian
+		wavedragEL
 		${CPPTEST_LIBRARIES}
 		${LIBXML2_LIBRARIES}
 		${FLTK_LIBRARIES}
@@ -104,6 +112,7 @@ ENDIF()
 
 ADD_EXECUTABLE(apitest
 apitest_main.cpp
+../geom_api/APITestSuite.cpp
 ../vsp/main.h.in
 )
 
@@ -116,7 +125,9 @@ TARGET_LINK_LIBRARIES(apitest
 	sixseries
 	util
 	tritri
+	clipper
     Angelscript
+    wavedragEL
 	${CPPTEST_LIBRARIES}
 	${LIBXML2_LIBRARIES}
 	${WINSOCK_LIBRARIES}
@@ -124,6 +135,10 @@ TARGET_LINK_LIBRARIES(apitest
 	${STEPCODE_LIBRARIES}
 	${LIBIGES_LIBRARIES}
 )
+
+IF( VSP_INSTALL_API_TEST )
+    INSTALL( TARGETS apitest RUNTIME DESTINATION . )
+ENDIF()
 
 ADD_EXECUTABLE(vspscript
 common.cpp
@@ -141,7 +156,9 @@ TARGET_LINK_LIBRARIES(vspscript
 	sixseries
 	util
 	tritri
+	clipper
 	Angelscript
+	wavedragEL
 	${CPPTEST_LIBRARIES}
 	${LIBXML2_LIBRARIES}
 	${WINSOCK_LIBRARIES}

@@ -65,10 +65,21 @@ public:
     virtual void SetScale( double scale );
     virtual string GetWidthParmID()                                    { return string(); }
 
+    // FakeWidth is introduced to provide a scale value for leading/trailing edge
+    // modifications when a unit-chord is forced for a propeller.
+    virtual double GetFakeWidth()                                      { return m_FakeWidth; }
+    virtual void SetFakeWidth( double w )                              { m_FakeWidth = w; }
+    virtual void SetUseFakeWidth( double b )                           { m_UseFakeWidth = b; }
+
     virtual double ComputeArea();
 
-    virtual void Close( bool wingtype );
-    virtual void Trim( bool wingtype );
+    virtual void CloseTE( bool wingtype );
+    virtual void CloseLE( bool wingtype );
+    virtual void TrimTE( bool wingtype );
+    virtual void TrimLE( bool wingtype );
+    virtual void CapTE( bool wingtype );
+    virtual void CapLE( bool wingtype );
+
     virtual void RotTransScale();
 
     virtual void ReadV2FileFuse2( xmlNodePtr &root );
@@ -79,6 +90,12 @@ public:
     Parm m_TECloseThick;
     Parm m_TECloseThickChord;
 
+    IntParm m_LECloseType;
+    IntParm m_LECloseAbsRel;
+
+    Parm m_LECloseThick;
+    Parm m_LECloseThickChord;
+
 
     IntParm m_TETrimType;
     IntParm m_TETrimAbsRel;
@@ -88,6 +105,24 @@ public:
     Parm m_TETrimThick;
     Parm m_TETrimThickChord;
 
+    IntParm m_LETrimType;
+    IntParm m_LETrimAbsRel;
+
+    Parm m_LETrimX;
+    Parm m_LETrimXChord;
+    Parm m_LETrimThick;
+    Parm m_LETrimThickChord;
+
+    IntParm m_TECapType;
+    Parm m_TECapLength;
+    Parm m_TECapOffset;
+    Parm m_TECapStrength;
+
+    IntParm m_LECapType;
+    Parm m_LECapLength;
+    Parm m_LECapOffset;
+    Parm m_LECapStrength;
+
     Parm m_Theta;
     Parm m_Scale;
     Parm m_DeltaX;
@@ -95,6 +130,9 @@ public:
     Parm m_ShiftLE;
 
 protected:
+
+    bool m_UseFakeWidth;
+    double m_FakeWidth;
 
     int m_Type;
 
@@ -202,6 +240,10 @@ public:
     Parm m_Height;
     Parm m_M;
     Parm m_N;
+    Parm m_M_bot;
+    Parm m_N_bot;
+    Parm m_MaxWidthLoc;
+    BoolParm m_TopBotSym;
 };
 
 //==========================================================================//
@@ -233,6 +275,11 @@ public:
     Parm m_Width;
     Parm m_Height;
     Parm m_Radius;
+    Parm m_BotRadius;
+    Parm m_MaxHeightLoc;
+    Parm m_Skew;
+    Parm m_Keystone;
+    BoolParm m_KeyCornerParm;
 };
 
 //==========================================================================//

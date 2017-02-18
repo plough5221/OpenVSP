@@ -26,10 +26,12 @@
 #include "Tritri.h"
 #include "BndBox.h"
 #include "StringUtil.h"
+#include "StlHelper.h"
 
 #include "SubSurfaceMgr.h"
 #include <set>
 #include <map>
+#include <algorithm>
 
 //==== Constructor =====//
 MeshGeom::MeshGeom( Vehicle* vehicle_ptr ) : Geom( vehicle_ptr )
@@ -75,11 +77,14 @@ MeshGeom::MeshGeom( Vehicle* vehicle_ptr ) : Geom( vehicle_ptr )
     m_MaxTriDen = 1.0;
 
     m_ScaleMatrix.loadIdentity();
-    m_ScaleFromOrig.Init( "Scale_From_Original", "XForm", this, 1, 1.0e-5, 1.0e12, false );
+    m_ScaleFromOrig.Init( "Scale_From_Original", "XForm", this, 1, 1.0e-5, 1.0e12 );
+
+    m_ViewMeshFlag.Init( "MeshFlag", "Draw", this, true, 0, 1 );
+    m_ViewSliceFlag.Init( "SliceFlag", "Draw", this, true, 0, 1 );
 
     // Debug
-    m_DrawType.Init( "Draw_Type", "Draw", this, DRAW_XYZ, DRAW_XYZ, DRAW_TAGS, false );
-    m_DrawSubSurfs.Init( "Draw_Sub_UV", "Debug", this, 0, 0, 1, false );
+    m_DrawType.Init( "Draw_Type", "Draw", this, DRAW_XYZ, DRAW_XYZ, DRAW_TAGS );
+    m_DrawSubSurfs.Init( "Draw_Sub_UV", "Debug", this, 0, 0, 1 );
 }
 
 //==== Destructor =====//
@@ -1035,82 +1040,85 @@ void MeshGeom::UpdateDrawObj()
     Matrix4d trans = GetTotalTransMat();
     vec3d zeroV = m_ModelMatrix.xform( vec3d( 0.0, 0.0, 0.0 ) );
 
-    if ( m_DrawType() & MeshGeom::DRAW_XYZ )
+    if ( m_ViewMeshFlag.Get() )
     {
-        for ( int m = 0 ; m < ( int )m_TMeshVec.size() ; m++ )
+        if ( m_DrawType() & MeshGeom::DRAW_XYZ )
         {
-            int num_tris = m_TMeshVec[m]->m_TVec.size();
-            int pi = 0;
-            vector<TTri*>& tris = m_TMeshVec[m]->m_TVec;
-            m_WireShadeDrawObj_vec[m].m_PntVec.resize( num_tris * 3 );
-            m_WireShadeDrawObj_vec[m].m_NormVec.resize( num_tris * 3 );
-            for ( int t = 0 ; t < ( int ) num_tris ; t++ )
+            for ( int m = 0 ; m < ( int )m_TMeshVec.size() ; m++ )
             {
-                m_WireShadeDrawObj_vec[m].m_PntVec[pi] = trans.xform( tris[t]->m_N0->m_Pnt );
-                m_WireShadeDrawObj_vec[m].m_PntVec[pi + 1] = trans.xform( tris[t]->m_N1->m_Pnt );
-                m_WireShadeDrawObj_vec[m].m_PntVec[pi + 2] = trans.xform( tris[t]->m_N2->m_Pnt );
-                vec3d norm =  m_ModelMatrix.xform( tris[t]->m_Norm ) - zeroV;
-                m_WireShadeDrawObj_vec[m].m_NormVec[pi] = norm;
-                m_WireShadeDrawObj_vec[m].m_NormVec[pi + 1] = norm;
-                m_WireShadeDrawObj_vec[m].m_NormVec[pi + 2] = norm;
-                pi += 3;
+                int num_tris = m_TMeshVec[m]->m_TVec.size();
+                int pi = 0;
+                vector<TTri*>& tris = m_TMeshVec[m]->m_TVec;
+                m_WireShadeDrawObj_vec[m].m_PntVec.resize( num_tris * 3 );
+                m_WireShadeDrawObj_vec[m].m_NormVec.resize( num_tris * 3 );
+                for ( int t = 0 ; t < ( int ) num_tris ; t++ )
+                {
+                    m_WireShadeDrawObj_vec[m].m_PntVec[pi] = trans.xform( tris[t]->m_N0->m_Pnt );
+                    m_WireShadeDrawObj_vec[m].m_PntVec[pi + 1] = trans.xform( tris[t]->m_N1->m_Pnt );
+                    m_WireShadeDrawObj_vec[m].m_PntVec[pi + 2] = trans.xform( tris[t]->m_N2->m_Pnt );
+                    vec3d norm =  m_ModelMatrix.xform( tris[t]->m_Norm ) - zeroV;
+                    m_WireShadeDrawObj_vec[m].m_NormVec[pi] = norm;
+                    m_WireShadeDrawObj_vec[m].m_NormVec[pi + 1] = norm;
+                    m_WireShadeDrawObj_vec[m].m_NormVec[pi + 2] = norm;
+                    pi += 3;
+                }
             }
         }
-    }
 
-    if ( m_DrawType() & MeshGeom::DRAW_UV )
-    {
-        for ( int m = 0 ; m < ( int )m_TMeshVec.size() ; m++ )
+        if ( m_DrawType() & MeshGeom::DRAW_UV )
         {
-            m_TMeshVec[m]->MakeNodePntUW();
-            int num_tris = m_TMeshVec[m]->m_TVec.size();
-            int pi = 0;
-            vector<TTri*>& tris = m_TMeshVec[m]->m_TVec;
-            m_WireShadeDrawObj_vec[m + add_ind].m_PntVec.resize( num_tris * 3 );
-            m_WireShadeDrawObj_vec[m + add_ind].m_NormVec.resize( num_tris * 3 );
-            for ( int t = 0 ; t < ( int ) num_tris ; t++ )
+            for ( int m = 0 ; m < ( int )m_TMeshVec.size() ; m++ )
             {
-                m_WireShadeDrawObj_vec[m + add_ind].m_PntVec[pi] = trans.xform( tris[t]->m_N0->m_Pnt );
-                m_WireShadeDrawObj_vec[m + add_ind].m_PntVec[pi + 1] = trans.xform( tris[t]->m_N1->m_Pnt );
-                m_WireShadeDrawObj_vec[m + add_ind].m_PntVec[pi + 2] = trans.xform( tris[t]->m_N2->m_Pnt );
-                vec3d norm =  m_ModelMatrix.xform( tris[t]->m_Norm ) - zeroV;
-                m_WireShadeDrawObj_vec[m + add_ind].m_NormVec[pi] = norm;
-                m_WireShadeDrawObj_vec[m + add_ind].m_NormVec[pi + 1] = norm;
-                m_WireShadeDrawObj_vec[m + add_ind].m_NormVec[pi + 2] = norm;
-                pi += 3;
+                m_TMeshVec[m]->MakeNodePntUW();
+                int num_tris = m_TMeshVec[m]->m_TVec.size();
+                int pi = 0;
+                vector<TTri*>& tris = m_TMeshVec[m]->m_TVec;
+                m_WireShadeDrawObj_vec[m + add_ind].m_PntVec.resize( num_tris * 3 );
+                m_WireShadeDrawObj_vec[m + add_ind].m_NormVec.resize( num_tris * 3 );
+                for ( int t = 0 ; t < ( int ) num_tris ; t++ )
+                {
+                    m_WireShadeDrawObj_vec[m + add_ind].m_PntVec[pi] = trans.xform( tris[t]->m_N0->m_Pnt );
+                    m_WireShadeDrawObj_vec[m + add_ind].m_PntVec[pi + 1] = trans.xform( tris[t]->m_N1->m_Pnt );
+                    m_WireShadeDrawObj_vec[m + add_ind].m_PntVec[pi + 2] = trans.xform( tris[t]->m_N2->m_Pnt );
+                    vec3d norm =  m_ModelMatrix.xform( tris[t]->m_Norm ) - zeroV;
+                    m_WireShadeDrawObj_vec[m + add_ind].m_NormVec[pi] = norm;
+                    m_WireShadeDrawObj_vec[m + add_ind].m_NormVec[pi + 1] = norm;
+                    m_WireShadeDrawObj_vec[m + add_ind].m_NormVec[pi + 2] = norm;
+                    pi += 3;
+                }
+                m_TMeshVec[m]->MakeNodePntXYZ();
             }
-            m_TMeshVec[m]->MakeNodePntXYZ();
-        }
-    }
-
-    if ( m_DrawType() == MeshGeom::DRAW_TAGS && m_DrawSubSurfs() == false )
-    {
-        // make map from tag to wire draw obj
-
-        map<int, DrawObj*> tag_dobj_map;
-        map< std::vector<int>, int >::const_iterator mit;
-        map< std::vector<int>, int > tagMap = SubSurfaceMgr.GetSingleTagMap();
-        int cnt = 0;
-        for ( mit = tagMap.begin(); mit != tagMap.end() ; mit++ )
-        {
-            tag_dobj_map[ mit->second ] = &m_WireShadeDrawObj_vec[cnt];
-            cnt++;
         }
 
-        for ( int m = 0 ; m < ( int )m_TMeshVec.size() ; m++ )
+        if ( m_DrawType() == MeshGeom::DRAW_TAGS && m_DrawSubSurfs() == false )
         {
-            int num_tris = m_TMeshVec[m]->m_TVec.size();
-            vector<TTri*>& tris = m_TMeshVec[m]->m_TVec;
-            for ( int t = 0 ; t < ( int ) num_tris ; t++ )
+            // make map from tag to wire draw obj
+
+            map<int, DrawObj*> tag_dobj_map;
+            map< std::vector<int>, int >::const_iterator mit;
+            map< std::vector<int>, int > tagMap = SubSurfaceMgr.GetSingleTagMap();
+            int cnt = 0;
+            for ( mit = tagMap.begin(); mit != tagMap.end() ; mit++ )
             {
-                DrawObj* d_obj = tag_dobj_map[ SubSurfaceMgr.GetTag( tris[t]->m_Tags ) ];
-                d_obj->m_PntVec.push_back( trans.xform( tris[t]->m_N0->m_Pnt ) );
-                d_obj->m_PntVec.push_back( trans.xform( tris[t]->m_N1->m_Pnt ) );
-                d_obj->m_PntVec.push_back( trans.xform( tris[t]->m_N2->m_Pnt ) );
-                vec3d norm =  m_ModelMatrix.xform( tris[t]->m_Norm ) - zeroV;
-                d_obj->m_NormVec.push_back( norm );
-                d_obj->m_NormVec.push_back( norm );
-                d_obj->m_NormVec.push_back( norm );
+                tag_dobj_map[ mit->second ] = &m_WireShadeDrawObj_vec[cnt];
+                cnt++;
+            }
+
+            for ( int m = 0 ; m < ( int )m_TMeshVec.size() ; m++ )
+            {
+                int num_tris = m_TMeshVec[m]->m_TVec.size();
+                vector<TTri*>& tris = m_TMeshVec[m]->m_TVec;
+                for ( int t = 0 ; t < ( int ) num_tris ; t++ )
+                {
+                    DrawObj* d_obj = tag_dobj_map[ SubSurfaceMgr.GetTag( tris[t]->m_Tags ) ];
+                    d_obj->m_PntVec.push_back( trans.xform( tris[t]->m_N0->m_Pnt ) );
+                    d_obj->m_PntVec.push_back( trans.xform( tris[t]->m_N1->m_Pnt ) );
+                    d_obj->m_PntVec.push_back( trans.xform( tris[t]->m_N2->m_Pnt ) );
+                    vec3d norm =  m_ModelMatrix.xform( tris[t]->m_Norm ) - zeroV;
+                    d_obj->m_NormVec.push_back( norm );
+                    d_obj->m_NormVec.push_back( norm );
+                    d_obj->m_NormVec.push_back( norm );
+                }
             }
         }
     }
@@ -1124,26 +1132,29 @@ void MeshGeom::UpdateDrawObj()
     //==== Bounding Box ====//
     m_HighlightDrawObj.m_PntVec = m_BBox.GetBBoxDrawLines();
 
-    //==== Draw Slices ====//
-    for ( int i = 0 ; i < ( int )m_SliceVec.size(); i++ )
+    if ( m_ViewSliceFlag.Get() )
     {
-        int draw_ind = m_WireShadeDrawObj_vec.size();
-        m_WireShadeDrawObj_vec.push_back( DrawObj() );
-        int num_tris = m_SliceVec[i]->m_TVec.size();
-        int pi = 0;
-        vector<TTri*>& tris = m_SliceVec[i]->m_TVec;
-        m_WireShadeDrawObj_vec[draw_ind].m_PntVec.resize( num_tris * 3 );
-        m_WireShadeDrawObj_vec[draw_ind].m_NormVec.resize( num_tris * 3 );
-        for ( int t = 0 ; t < ( int ) num_tris ; t++ )
+        //==== Draw Slices ====//
+        for ( int i = 0 ; i < ( int )m_SliceVec.size(); i++ )
         {
-            m_WireShadeDrawObj_vec[draw_ind].m_PntVec[pi] = trans.xform( tris[t]->m_N0->m_Pnt );
-            m_WireShadeDrawObj_vec[draw_ind].m_PntVec[pi + 1] = trans.xform( tris[t]->m_N1->m_Pnt );
-            m_WireShadeDrawObj_vec[draw_ind].m_PntVec[pi + 2] = trans.xform( tris[t]->m_N2->m_Pnt );
-            vec3d norm =  m_ModelMatrix.xform( tris[t]->m_Norm ) - zeroV;
-            m_WireShadeDrawObj_vec[draw_ind].m_NormVec[pi] = norm;
-            m_WireShadeDrawObj_vec[draw_ind].m_NormVec[pi + 1] = norm;
-            m_WireShadeDrawObj_vec[draw_ind].m_NormVec[pi + 2] = norm;
-            pi += 3;
+            int draw_ind = m_WireShadeDrawObj_vec.size();
+            m_WireShadeDrawObj_vec.push_back( DrawObj() );
+            int num_tris = m_SliceVec[i]->m_TVec.size();
+            int pi = 0;
+            vector<TTri*>& tris = m_SliceVec[i]->m_TVec;
+            m_WireShadeDrawObj_vec[draw_ind].m_PntVec.resize( num_tris * 3 );
+            m_WireShadeDrawObj_vec[draw_ind].m_NormVec.resize( num_tris * 3 );
+            for ( int t = 0 ; t < ( int ) num_tris ; t++ )
+            {
+                m_WireShadeDrawObj_vec[draw_ind].m_PntVec[pi] = trans.xform( tris[t]->m_N0->m_Pnt );
+                m_WireShadeDrawObj_vec[draw_ind].m_PntVec[pi + 1] = trans.xform( tris[t]->m_N1->m_Pnt );
+                m_WireShadeDrawObj_vec[draw_ind].m_PntVec[pi + 2] = trans.xform( tris[t]->m_N2->m_Pnt );
+                vec3d norm =  m_ModelMatrix.xform( tris[t]->m_Norm ) - zeroV;
+                m_WireShadeDrawObj_vec[draw_ind].m_NormVec[pi] = norm;
+                m_WireShadeDrawObj_vec[draw_ind].m_NormVec[pi + 1] = norm;
+                m_WireShadeDrawObj_vec[draw_ind].m_NormVec[pi + 2] = norm;
+                pi += 3;
+            }
         }
     }
 
@@ -1151,6 +1162,16 @@ void MeshGeom::UpdateDrawObj()
     for ( int i = 0 ; i < ( int )m_WireShadeDrawObj_vec.size(); i++ )
     {
         m_WireShadeDrawObj_vec[i].m_GeomChanged = true;
+    }
+
+    m_FeatureDrawObj_vec.resize( m_PolyVec.size() );
+    for ( int i = 0; i < m_PolyVec.size(); i++ )
+    {
+        m_FeatureDrawObj_vec[i].m_PntVec.resize( m_PolyVec[i].size() );
+        for ( int j = 0; j < m_PolyVec[i].size(); j++ )
+        {
+            m_FeatureDrawObj_vec[i].m_PntVec[j] = trans.xform( m_PolyVec[i][j] );
+        }
     }
 }
 
@@ -1223,16 +1244,34 @@ void MeshGeom::LoadDrawObjs( vector< DrawObj* > & draw_obj_vec )
             break;
         }
     }
+
+
+    for ( int i = 0; i < m_FeatureDrawObj_vec.size(); i++ )
+    {
+        m_FeatureDrawObj_vec[i].m_Type = DrawObj::VSP_LINE_STRIP;
+    }
+
 }
 
 //==== Create And Load Tris into Results Data Structures ====//
 void MeshGeom::CreateGeomResults( Results* res )
 {
+    if ( m_TMeshVec.size() && m_SliceVec.size() )
+    {
+        res->Add( NameValData( "Type", vsp::MESH_INDEX_AND_SLICE_TRI ) );
+    }
+    else if ( m_TMeshVec.size() )
+    {
+        res->Add( NameValData( "Type", vsp::MESH_INDEXED_TRI ) );
+    }
+    else if ( m_SliceVec.size() )
+    {
+        res->Add( NameValData( "Type", vsp::MESH_SLICE_TRI ) );
+    }
+
     //==== Add Index Tris =====//
     if ( m_TMeshVec.size() )
     {
-        res->Add( ResData( "Type", vsp::MESH_INDEXED_TRI ) );
-
         BuildIndexedMesh( 0 );
 
         vector< vec3d > pvec;
@@ -1243,8 +1282,8 @@ void MeshGeom::CreateGeomResults( Results* res )
             TNode* tnode = m_IndexedNodeVec[i];
             pvec.push_back( XFormMat.xform( tnode->m_Pnt ) );
         }
-        res->Add( ResData( "Num_Pnts", ( int )m_IndexedNodeVec.size() ) );
-        res->Add( ResData( "Tri_Pnts", pvec ) );
+        res->Add( NameValData( "Num_Pnts", ( int )m_IndexedNodeVec.size() ) );
+        res->Add( NameValData( "Tri_Pnts", pvec ) );
 
         //==== Write Out Tris ====//
         vector< int > id0_vec;
@@ -1258,21 +1297,20 @@ void MeshGeom::CreateGeomResults( Results* res )
             id1_vec.push_back( ttri->m_N1->m_ID );
             id2_vec.push_back( ttri->m_N2->m_ID );
         }
-        res->Add( ResData( "Num_Tris", ( int )m_IndexedTriVec.size() ) );
-        res->Add( ResData( "Tri_Index0", id0_vec ) );
-        res->Add( ResData( "Tri_Index1", id1_vec ) );
-        res->Add( ResData( "Tri_Index2", id2_vec ) );
+        res->Add( NameValData( "Num_Tris", ( int )m_IndexedTriVec.size() ) );
+        res->Add( NameValData( "Tri_Index0", id0_vec ) );
+        res->Add( NameValData( "Tri_Index1", id1_vec ) );
+        res->Add( NameValData( "Tri_Index2", id2_vec ) );
     }
-    //==== Add Slices =====//
-    else if ( m_SliceVec.size() )
-    {
-        res->Add( ResData( "Type", vsp::MESH_SLICE_TRI ) );
 
+    //==== Add Slices =====//
+    if ( m_SliceVec.size() )
+    {
         //==== Load m_SliceVec ====//
-        res->Add( ResData( "Num_Slices", ( int )m_SliceVec.size() ) );
+        res->Add( NameValData( "Num_Slices", ( int )m_SliceVec.size() ) );
         for ( int i = 0; i < ( int )m_SliceVec.size(); i++ )
         {
-            res->Add( ResData( "Num_Slice_Tris", ( int )( int )m_SliceVec[i]->m_TVec.size() ) );
+            res->Add( NameValData( "Num_Slice_Tris", ( int )( int )m_SliceVec[i]->m_TVec.size() ) );
             vector< vec3d > slice_tri_n0_vec;
             vector< vec3d > slice_tri_n1_vec;
             vector< vec3d > slice_tri_n2_vec;
@@ -1283,13 +1321,11 @@ void MeshGeom::CreateGeomResults( Results* res )
                 slice_tri_n1_vec.push_back( tri->m_N1->m_Pnt );
                 slice_tri_n2_vec.push_back( tri->m_N2->m_Pnt );
             }
-            res->Add( ResData( "Slice_Tris_Pnt_0", slice_tri_n0_vec ) );
-            res->Add( ResData( "Slice_Tris_Pnt_1", slice_tri_n1_vec ) );
-            res->Add( ResData( "Slice_Tris_Pnt_2", slice_tri_n2_vec ) );
+            res->Add( NameValData( "Slice_Tris_Pnt_0", slice_tri_n0_vec ) );
+            res->Add( NameValData( "Slice_Tris_Pnt_1", slice_tri_n1_vec ) );
+            res->Add( NameValData( "Slice_Tris_Pnt_2", slice_tri_n2_vec ) );
         }
     }
-
-
 }
 
 void MeshGeom::CreatePtCloudGeom()
@@ -1500,9 +1536,10 @@ void MeshGeom::IntersectTrim( int halfFlag, int intSubsFlag )
 
     //==== Create Results ====//
     Results* res = ResultsMgr.CreateResults( "Comp_Geom" );
-    res->Add( ResData( "Num_Comps", ( int )compIdVec.size() ) );
-    res->Add( ResData( "Total_Num_Meshes", ( int )m_TMeshVec.size() ) );
-    res->Add( ResData( "Total_Num_Tris", numTris ) );
+    res->Add( NameValData( "Num_Comps", ( int )compIdVec.size() ) );
+    res->Add( NameValData( "Total_Num_Meshes", ( int )m_TMeshVec.size() ) );
+    res->Add( NameValData( "Total_Num_Tris", numTris ) );
+    res->Add( NameValData( "Mesh_GeomID", this->GetID() ) );
 
 
     //==== Scale To 10 Units ====//
@@ -1718,7 +1755,7 @@ void MeshGeom::IntersectTrim( int halfFlag, int intSubsFlag )
     vector< double > max_area;
     vector< double > length_dia;
 
-    res->Add( ResData( "Num_Meshes", ( int )m_TMeshVec.size() ) );
+    res->Add( NameValData( "Num_Meshes", ( int )m_TMeshVec.size() ) );
     for ( i = 0 ; i < ( int )m_TMeshVec.size() ; i++ )
     {
         TMesh* tmsh = m_TMeshVec[i];
@@ -1739,33 +1776,33 @@ void MeshGeom::IntersectTrim( int halfFlag, int intSubsFlag )
         length_dia.push_back( tmsh->m_DragFactors.m_LengthToDia );
     }
 
-    res->Add( ResData( "Comp_Name", name_vec ) );
-    res->Add( ResData( "Theo_Area", theo_area_vec ) );
-    res->Add( ResData( "Wet_Area", wet_area_vec ) );
-    res->Add( ResData( "Theo_Vol", theo_vol_vec ) );
-    res->Add( ResData( "Wet_Vol", wet_vol_vec ) );
+    res->Add( NameValData( "Comp_Name", name_vec ) );
+    res->Add( NameValData( "Theo_Area", theo_area_vec ) );
+    res->Add( NameValData( "Wet_Area", wet_area_vec ) );
+    res->Add( NameValData( "Theo_Vol", theo_vol_vec ) );
+    res->Add( NameValData( "Wet_Vol", wet_vol_vec ) );
 
-    res->Add( ResData( "Total_Theo_Area", m_TotalTheoArea ) );
-    res->Add( ResData( "Total_Wet_Area", m_TotalWetArea ) );
-    res->Add( ResData( "Total_Theo_Vol", m_TotalTheoVol ) );
-    res->Add( ResData( "Total_Wet_Vol", m_TotalWetVol ) );
+    res->Add( NameValData( "Total_Theo_Area", m_TotalTheoArea ) );
+    res->Add( NameValData( "Total_Wet_Area", m_TotalWetArea ) );
+    res->Add( NameValData( "Total_Theo_Vol", m_TotalTheoVol ) );
+    res->Add( NameValData( "Total_Wet_Vol", m_TotalWetVol ) );
 
-    res->Add( ResData( "Min_Chord", min_chord ) );
-    res->Add( ResData( "Avg_Chord", avg_chord ) );
-    res->Add( ResData( "Max_Chord", max_chord ) );
+    res->Add( NameValData( "Min_Chord", min_chord ) );
+    res->Add( NameValData( "Avg_Chord", avg_chord ) );
+    res->Add( NameValData( "Max_Chord", max_chord ) );
 
-    res->Add( ResData( "Min_TC", min_tc ) );
-    res->Add( ResData( "Avg_TC", avg_tc ) );
-    res->Add( ResData( "Max_TC", max_tc ) );
+    res->Add( NameValData( "Min_TC", min_tc ) );
+    res->Add( NameValData( "Avg_TC", avg_tc ) );
+    res->Add( NameValData( "Max_TC", max_tc ) );
 
-    res->Add( ResData( "Avg_Sweep", avg_sweep ) );
-    res->Add( ResData( "Length", length ) );
-    res->Add( ResData( "Max_Area", max_area ) );
-    res->Add( ResData( "Length_Dia", length_dia ) );
+    res->Add( NameValData( "Avg_Sweep", avg_sweep ) );
+    res->Add( NameValData( "Length", length ) );
+    res->Add( NameValData( "Max_Area", max_area ) );
+    res->Add( NameValData( "Length_Dia", length_dia ) );
 
-    res->Add( ResData( "Num_Degen_Tris_Removed", info.m_NumDegenerateTriDeleted ) );
-    res->Add( ResData( "Num_Open_Meshes_Removed", info.m_NumOpenMeshedDeleted ) );
-    res->Add( ResData( "Num_Open_Meshes_Merged", info.m_NumOpenMeshesMerged ) );
+    res->Add( NameValData( "Num_Degen_Tris_Removed", info.m_NumDegenerateTriDeleted ) );
+    res->Add( NameValData( "Num_Open_Meshes_Removed", info.m_NumOpenMeshedDeleted ) );
+    res->Add( NameValData( "Num_Open_Meshes_Merged", info.m_NumOpenMeshesMerged ) );
 
     string txtfn = m_Vehicle->getExportFileName( vsp::COMP_GEOM_TXT_TYPE );
     res->WriteCompGeomTxtFile( txtfn );
@@ -1970,182 +2007,7 @@ void MeshGeom::degenGeomIntersectTrim( vector< DegenGeom > &degenGeom )
 }
 
 //==== Call After BndBoxes Have Been Create But Before Intersect ====//
-void MeshGeom::SliceX( int numSlices )
-{
-    int i, j, s;
-
-    FILE* fid = fopen( "comp_geom.txt", "w" );
-
-    //==== Check For Open Meshes and Merge or Delete Them ====//
-    MeshInfo info;
-    MergeRemoveOpenMeshes( &info );
-
-    //==== Count Tris ====//
-    int numTris = 0;
-    for ( i = 0 ; i < ( int )m_TMeshVec.size() ; i++ )
-    {
-        numTris += m_TMeshVec[i]->m_TVec.size();
-    }
-
-    //==== Count Components ====//
-    vector< string > compIdVec;
-    for ( i = 0 ; i < ( int )m_TMeshVec.size() ; i++ )
-    {
-        string id = m_TMeshVec[i]->m_PtrID;
-        vector<string>::iterator iter;
-
-        iter = find( compIdVec.begin(), compIdVec.end(), id );
-
-        if ( iter == compIdVec.end() )
-        {
-            compIdVec.push_back( id );
-        }
-    }
-
-    fprintf( fid, "...Slice...\n" );
-    fprintf( fid, "%d Num Comps\n", ( int )compIdVec.size() );
-    fprintf( fid, "%d Total Num Meshes\n", ( int )m_TMeshVec.size() );
-    fprintf( fid, "%d Total Num Tris\n", numTris );
-
-    //==== Create Bnd Box for  Mesh Geoms ====//
-    for ( i = 0 ; i < ( int )m_TMeshVec.size() ; i++ )
-    {
-        m_TMeshVec[i]->LoadBndBox();
-    }
-
-    //==== Update Bnd Box for  Combined ====//
-    BndBox b;
-    for ( i = 0 ; i < ( int )m_TMeshVec.size() ; i++ )
-    {
-        b.Update( m_TMeshVec[i]->m_TBox.m_Box );
-    }
-    m_BBox = b;
-    //update_xformed_bbox();            // Load Xform BBox
-
-    double xMin = m_BBox.GetMin( 0 ) - 0.0001;
-    double xMax = m_BBox.GetMax( 0 ) + 0.0001;
-
-    //==== Build Slice Mesh Object =====//
-    if ( numSlices < 3 )
-    {
-        numSlices = 3;
-    }
-
-    for ( s = 0 ; s < numSlices ; s++ )
-    {
-        TMesh* tm = new TMesh();
-        m_SliceVec.push_back( tm );
-
-        double x = xMin + ( ( double )s / ( double )( numSlices - 1 ) ) * ( xMax - xMin );
-
-        double ydel = 1.02 * ( m_BBox.GetMax( 1 ) - m_BBox.GetMin( 1 ) );
-        double ys   = m_BBox.GetMin( 1 ) - 0.01 * ydel;
-        double zdel = 1.02 * ( m_BBox.GetMax( 2 ) - m_BBox.GetMin( 2 ) );
-        double zs   = m_BBox.GetMin( 2 ) - 0.01 * zdel;
-
-        for ( i = 0 ; i < 10 ; i++ )
-        {
-            double y0 = ys + ydel * 0.1 * ( double )i;
-            double y1 = ys + ydel * 0.1 * ( double )( i + 1 );
-
-            for ( j = 0 ; j < 10 ; j++ )
-            {
-                double z0 = zs + zdel * 0.1 * ( double )j;
-                double z1 = zs + zdel * 0.1 * ( double )( j + 1 );
-
-                tm->AddTri( vec3d( x, y0, z0 ), vec3d( x, y1, z0 ), vec3d( x, y1, z1 ), vec3d( 1, 0, 0 ) );
-                tm->AddTri( vec3d( x, y0, z0 ), vec3d( x, y1, z1 ), vec3d( x, y0, z1 ), vec3d( 1, 0, 0 ) );
-            }
-        }
-    }
-
-    //==== Load Bnding Box ====//
-    for ( s = 0 ; s < ( int )m_SliceVec.size() ; s++ )
-    {
-        TMesh* tm = m_SliceVec[s];
-        tm->LoadBndBox();
-
-        //==== Intersect All Mesh Geoms ====//
-        for ( i = 0 ; i < ( int )m_TMeshVec.size() ; i++ )
-        {
-            tm->Intersect( m_TMeshVec[i] );
-
-            for ( j = 0 ; j < ( int )m_TMeshVec[i]->m_TVec.size() ; j++ )
-            {
-                TTri* tri = m_TMeshVec[i]->m_TVec[j];
-                for ( int e = 0 ; e < ( int )tri->m_ISectEdgeVec.size() ; e++ )
-                {
-                    delete tri->m_ISectEdgeVec[e]->m_N0;
-                    delete tri->m_ISectEdgeVec[e]->m_N1;
-                    delete tri->m_ISectEdgeVec[e];
-                }
-                tri->m_ISectEdgeVec.erase( tri->m_ISectEdgeVec.begin(), tri->m_ISectEdgeVec.end() );
-            }
-        }
-
-        //==== Split Intersected Tri in Mesh ====//
-        tm->Split();
-
-        //==== Determine Which Triangle Are Interior/Exterior ====//
-        tm->DeterIntExt( m_TMeshVec );
-
-        //==== Flip Int/Ext Flags ====//
-        for ( i = 0 ; i < ( int )tm->m_TVec.size() ; i++ )
-        {
-            TTri* tri = tm->m_TVec[i];
-            if ( tri->m_SplitVec.size() )
-            {
-                for ( j = 0 ; j < ( int )tri->m_SplitVec.size() ; j++ )
-                {
-                    tri->m_SplitVec[j]->m_InteriorFlag = !( tri->m_SplitVec[j]->m_InteriorFlag );
-                }
-            }
-            else
-            {
-                tri->m_InteriorFlag = !( tri->m_InteriorFlag );
-            }
-        }
-    }
-
-    //==== Delete Mesh Geometry ====//
-    for ( i = 0 ; i < ( int )m_TMeshVec.size() ; i++ )
-    {
-        delete m_TMeshVec[i];
-    }
-
-    m_TMeshVec.erase( m_TMeshVec.begin(), m_TMeshVec.end() );
-
-    fprintf( fid, "\n" );
-    fprintf( fid, "X       Area\n" );
-    for ( s = 0 ; s < ( int )m_SliceVec.size() ; s++ )
-    {
-        double x = xMin + ( ( double )s / ( double )( numSlices - 1 ) ) * ( xMax - xMin );
-        m_SliceVec[s]->ComputeWetArea();
-
-        fprintf( fid, "%9.3f  %9.3f\n", x, m_SliceVec[s]->m_WetArea );
-    }
-
-    if ( info.m_NumDegenerateTriDeleted )
-    {
-        fprintf( fid, "WARNING: %d degenerate triangle removed\n", info.m_NumDegenerateTriDeleted );
-    }
-    if ( info.m_NumOpenMeshedDeleted )
-    {
-        fprintf( fid, "WARNING: %d open meshes removed\n", info.m_NumOpenMeshedDeleted );
-    }
-    if ( info.m_NumOpenMeshesMerged )
-    {
-        fprintf( fid, "WARNING: %d open meshes merged\n", info.m_NumOpenMeshesMerged );
-    }
-
-
-    fclose( fid );
-
-}
-
-
-//==== Call After BndBoxes Have Been Create But Before Intersect ====//
-void MeshGeom::AreaSlice( int style, int numSlices, double sliceAngle, double coneSections, vec3d norm_axis,
+void MeshGeom::AreaSlice( int numSlices , vec3d norm_axis,
                           bool autoBounds, double start, double end )
 {
     int tesselate = 0;
@@ -2218,9 +2080,10 @@ void MeshGeom::AreaSlice( int style, int numSlices, double sliceAngle, double co
 
     //==== Create Results ====//
     Results* res = ResultsMgr.CreateResults( "Slice" );
-    res->Add( ResData( "Num_Degen_Triangles_Removed", info.m_NumDegenerateTriDeleted ) );
-    res->Add( ResData( "Num_Open_Meshes_Removed", info.m_NumOpenMeshedDeleted ) );
-    res->Add( ResData( "Num_Open_Meshes_Merged", info.m_NumOpenMeshesMerged ) );
+    res->Add( NameValData( "Num_Degen_Triangles_Removed", info.m_NumDegenerateTriDeleted ) );
+    res->Add( NameValData( "Num_Open_Meshes_Removed", info.m_NumOpenMeshedDeleted ) );
+    res->Add( NameValData( "Num_Open_Meshes_Merged", info.m_NumOpenMeshesMerged ) );
+    res->Add( NameValData( "Mesh_GeomID", this->GetID() ) );
 
 
     //==== Count Tris ====//
@@ -2245,11 +2108,10 @@ void MeshGeom::AreaSlice( int style, int numSlices, double sliceAngle, double co
         }
     }
 
-    res->Add( ResData( "Style", style ) );
-    res->Add( ResData( "Num_Comps", ( int )compIdVec.size() ) );
-    res->Add( ResData( "Num_Meshes", ( int )m_TMeshVec.size() ) );
-    res->Add( ResData( "Num_Tris", numTris ) );
-    res->Add( ResData( "Axis_Vector", norm_axis ) );
+    res->Add( NameValData( "Num_Comps", ( int )compIdVec.size() ) );
+    res->Add( NameValData( "Num_Meshes", ( int )m_TMeshVec.size() ) );
+    res->Add( NameValData( "Num_Tris", numTris ) );
+    res->Add( NameValData( "Axis_Vector", norm_axis ) );
 
     //==== Create Bnd Box for  Mesh Geoms ====//
     for ( i = 0 ; i < ( int )m_TMeshVec.size() ; i++ )
@@ -2278,134 +2140,51 @@ void MeshGeom::AreaSlice( int style, int numSlices, double sliceAngle, double co
         xMin = start - 0.0001;
         xMax = end + 0.0001;
     }
+
     //==== Build Slice Mesh Object =====//
-    if ( numSlices < 3 )
-    {
-        numSlices = 3;
-    }
+    // MJW: Mandating 3 slices is a preference. 2 is just fine, and sometimes necessary.
+    //if ( numSlices < 3 )
+    //{
+        //numSlices = 3;
+    //}
 
-    if ( style == vsp::SLICE_PLANAR )
-    {
-        vec3d norm( 1, 0, 0 );
+    vec3d norm( 1, 0, 0 );
 
-        for ( s = 0 ; s < numSlices ; s++ )
+    for ( s = 0 ; s < numSlices ; s++ )
+    {
+        TMesh* tm = new TMesh();
+        m_SliceVec.push_back( tm );
+
+        double x = xMin + ( ( double )s / ( double )( numSlices - 1 ) ) * ( xMax - xMin );
+
+        double ydel = 1.02 * ( m_BBox.GetMax( 1 ) - m_BBox.GetMin( 1 ) );
+        double ys   = m_BBox.GetMin( 1 ) - 0.01 * ydel;
+        double zdel = 1.02 * ( m_BBox.GetMax( 2 ) - m_BBox.GetMin( 2 ) );
+        double zs   = m_BBox.GetMin( 2 ) - 0.01 * zdel;
+
+        if ( tesselate )
         {
-            TMesh* tm = new TMesh();
-            m_SliceVec.push_back( tm );
-
-            double x = xMin + ( ( double )s / ( double )( numSlices - 1 ) ) * ( xMax - xMin );
-
-            double ydel = 1.02 * ( m_BBox.GetMax( 1 ) - m_BBox.GetMin( 1 ) );
-            double ys   = m_BBox.GetMin( 1 ) - 0.01 * ydel;
-            double zdel = 1.02 * ( m_BBox.GetMax( 2 ) - m_BBox.GetMin( 2 ) );
-            double zs   = m_BBox.GetMin( 2 ) - 0.01 * zdel;
-
-            if ( tesselate )
+            for ( i = 0 ; i < 10 ; i++ )
             {
-                for ( i = 0 ; i < 10 ; i++ )
+                double y0 = ys + ydel * 0.1 * ( double )i;
+                double y1 = ys + ydel * 0.1 * ( double )( i + 1 );
+
+                for ( j = 0 ; j < 10 ; j++ )
                 {
-                    double y0 = ys + ydel * 0.1 * ( double )i;
-                    double y1 = ys + ydel * 0.1 * ( double )( i + 1 );
+                    double z0 = zs + zdel * 0.1 * ( double )j;
+                    double z1 = zs + zdel * 0.1 * ( double )( j + 1 );
 
-                    for ( j = 0 ; j < 10 ; j++ )
-                    {
-                        double z0 = zs + zdel * 0.1 * ( double )j;
-                        double z1 = zs + zdel * 0.1 * ( double )( j + 1 );
-
-                        tm->AddTri( vec3d( x, y0, z0 ), vec3d( x, y1, z0 ), vec3d( x, y1, z1 ), norm );
-                        tm->AddTri( vec3d( x, y0, z0 ), vec3d( x, y1, z1 ), vec3d( x, y0, z1 ), norm );
-                    }
-                }
-            }
-            else
-            {
-                tm->AddTri( vec3d( x, ys, zs ), vec3d( x, ys + ydel, zs ), vec3d( x, ys + ydel, zs + zdel ), norm );
-                tm->AddTri( vec3d( x, ys, zs ), vec3d( x, ys + ydel, zs + zdel ), vec3d( x, ys, zs + zdel ), norm );
-            }
-        }
-
-    }
-    else if ( style == vsp::SLICE_AWAVE )
-    {
-        for ( s = 0 ; s < numSlices ; s++ )
-        {
-
-            double xcenter = xMin + ( ( double )s / ( double )( numSlices - 1 ) ) * ( xMax - xMin );
-
-            double ydel = m_BBox.GetMax( 1 ) - m_BBox.GetMin( 1 );
-            double zdel = m_BBox.GetMax( 2 ) - m_BBox.GetMin( 2 );
-            double ycenter = m_BBox.GetMin( 1 ) + ydel * 0.5;
-            double zcenter = m_BBox.GetMin( 2 ) + zdel * 0.5;
-
-            double size = max( ydel, zdel ) * 1.02;
-            if ( sliceAngle == 0 )
-            {
-                sliceAngle = 1;
-            }
-            double xdel = 2 * size / tan( DEG2RAD( sliceAngle ) );
-
-            double radius = size / 2.0;
-
-            // for num sections, rotate about x-axis
-            for ( double a = 0; a < coneSections; a++ )
-            {
-                TMesh* tm = new TMesh();
-                m_SliceVec.push_back( tm );
-
-                double theta = ( 2.0 * PI * a ) / ( ( double ) coneSections );
-                double rsintheta = radius * sin( theta );
-                double rcostheta = radius * cos( theta );
-
-                vec3d offset( xcenter, ycenter, zcenter );
-                vec3d tr( -xdel / 2, rcostheta + rsintheta, rcostheta - rsintheta );
-                vec3d tl( -xdel / 2, rsintheta - rcostheta, rcostheta + rsintheta );
-                vec3d br = vec3d( 0, 0, 0 ) - tl;
-                vec3d bl = vec3d( 0, 0, 0 ) - tr;
-                vec3d norm = cross( br - bl, tl - bl );
-                norm.normalize();
-
-                if ( tesselate )
-                {
-                    vec3d bl0, br0, tl0, tr0;
-                    vec3d bl1, br1, tl1, tr1;
-                    double u, v, u1, v1;
-                    double increment = 0.1;
-                    for ( u = 0; u < 1.0; u += increment )
-                    {
-                        // tesselate
-                        u1 = u + increment;
-                        bl0 = ( bl * u  + br * ( 1.0 - u ) );
-                        br0 = ( bl * u1 + br * ( 1.0 - u1 ) );
-                        tl0 = ( tl * u  + tr * ( 1.0 - u ) );
-                        tr0 = ( tl * u1 + tr * ( 1.0 - u1 ) );
-                        for ( v = 0; v < 1.0; v += increment )
-                        {
-                            // tesselate
-                            v1 = v + increment;
-                            bl1 = ( bl0 * v  + tl0 * ( 1.0 - v ) );
-                            tl1 = ( bl0 * v1 + tl0 * ( 1.0 - v1 ) );
-                            br1 = ( br0 * v  + tr0 * ( 1.0 - v ) );
-                            tr1 = ( br0 * v1 + tr0 * ( 1.0 - v1 ) );
-
-                            tm->AddTri( bl1 + offset, br1 + offset, tr1 + offset, norm );
-                            tm->AddTri( bl1 + offset, tr1 + offset, tl1 + offset, norm );
-                        }
-                    }
-                }
-                else
-                {
-                    tm->AddTri( bl + offset, br + offset, tr + offset, norm );
-                    tm->AddTri( bl + offset, tr + offset, tl + offset, norm );
+                    tm->AddTri( vec3d( x, y0, z0 ), vec3d( x, y1, z0 ), vec3d( x, y1, z1 ), norm );
+                    tm->AddTri( vec3d( x, y0, z0 ), vec3d( x, y1, z1 ), vec3d( x, y0, z1 ), norm );
                 }
             }
         }
-
+        else
+        {
+            tm->AddTri( vec3d( x, ys, zs ), vec3d( x, ys + ydel, zs ), vec3d( x, ys + ydel, zs + zdel ), norm );
+            tm->AddTri( vec3d( x, ys, zs ), vec3d( x, ys + ydel, zs + zdel ), vec3d( x, ys, zs + zdel ), norm );
+        }
     }
-    else
-    {
-        return;
-    }
-
 
     //==== Load Bnding Box ====//
     for ( s = 0 ; s < ( int )m_SliceVec.size() ; s++ )
@@ -2454,76 +2233,555 @@ void MeshGeom::AreaSlice( int style, int numSlices, double sliceAngle, double co
             }
         }
     }
-    //==== Delete Mesh Geometry ====//
-    for ( i = 0 ; i < ( int )m_TMeshVec.size() ; i++ )
-    {
-        delete m_TMeshVec[i];
-    }
-
-    m_TMeshVec.erase( m_TMeshVec.begin(), m_TMeshVec.end() );
 
     TransMat.affineInverse();
-    if ( style == vsp::SLICE_PLANAR )
-    {
-        vector< double > loc_vec;
-        vector< double > area_vec;
-        vector < vec3d > AreaCenter;
-        for ( s = 0 ; s < ( int )m_SliceVec.size() ; s++ )
-        {
-            double x = xMin + ( ( double )s / ( double )( numSlices - 1 ) ) * ( xMax - xMin );
-            m_SliceVec[s]->ComputeWetArea();
-            loc_vec.push_back( x );
-            area_vec.push_back( m_SliceVec[s]->m_WetArea );
-            AreaCenter.push_back( TransMat.xform( m_SliceVec[s]->m_AreaCenter ) );
-        }
-        res->Add( ResData( "Slice_Area_Center", AreaCenter ) );
-        res->Add( ResData( "Num_Slices", ( int )m_SliceVec.size() ) );
-        res->Add( ResData( "Slice_Loc", loc_vec ) );
-        res->Add( ResData( "Slice_Area", area_vec ) );
-    }
-    else if ( style == vsp::SLICE_AWAVE )
-    {
-        vector< double > loc_vec;
-        for ( i = 0; i < coneSections; i++ )
-        {
-            loc_vec.push_back( 360.0 * i / coneSections );
-        }
-        res->Add( ResData( "Num_Slices", ( int )numSlices ) );
-        res->Add( ResData( "Slice_Loc", loc_vec ) );
-        res->Add( ResData( "Num_Cone_Sections", ( int )coneSections ) );
 
-        vector< double > x_vec;
-        for ( s = 0 ; s < numSlices ; s++ )
-        {
-            double sum = 0;
-            double x = xMin + ( ( double )s / ( double )( numSlices - 1 ) ) * ( xMax - xMin );
-            x_vec.push_back( x );
-
-            vector< double > wet_vec;
-            vector < vec3d > AreaCenter;
-            for ( int r = 0; r < coneSections; r++ )
-            {
-                int sindex = ( int )( s * coneSections + r );
-                m_SliceVec[sindex]->ComputeAwaveArea();
-                sum += m_SliceVec[sindex]->m_WetArea;
-                wet_vec.push_back( m_SliceVec[sindex]->m_WetArea );
-                AreaCenter.push_back( TransMat.xform( m_SliceVec[sindex]->m_AreaCenter ) );
-            }
-            res->Add( ResData( "Slice_Area_Center",  AreaCenter) );
-            res->Add( ResData( "Slice_Wet_Area", wet_vec ) );
-            res->Add( ResData( "Slice_Sum_Area", sum ) );
-            res->Add( ResData( "Slice_Avg_Area", sum / coneSections ) );
-        }
-        res->Add( ResData( "X_Loc", x_vec ) );
+    vector< double > loc_vec;
+    vector< double > area_vec;
+    vector < vec3d > AreaCenter;
+    for ( s = 0 ; s < ( int )m_SliceVec.size() ; s++ )
+    {
+        double x = xMin + ( ( double )s / ( double )( numSlices - 1 ) ) * ( xMax - xMin );
+        m_SliceVec[s]->ComputeWetArea();
+        loc_vec.push_back( x );
+        area_vec.push_back( m_SliceVec[s]->m_WetArea );
+        AreaCenter.push_back( TransMat.xform( m_SliceVec[s]->m_AreaCenter ) );
     }
+    res->Add( NameValData( "Slice_Area_Center", AreaCenter ) );
+    res->Add( NameValData( "Num_Slices", ( int )m_SliceVec.size() ) );
+    res->Add( NameValData( "Slice_Loc", loc_vec ) );
+    res->Add( NameValData( "Slice_Area", area_vec ) );
 
     string filename = m_Vehicle->getExportFileName( vsp::SLICE_TXT_TYPE );
-    res->WriteSliceFile( filename, style );
+    res->WriteSliceFile( filename );
 
-    //==== TransForm Slices to Match Orignal Coord Sys ====//
+    //==== TransForm Slices and Mesh to Match Orignal Coord Sys ====//
     TransformMeshVec( m_SliceVec, TransMat );
+    TransformMeshVec( m_TMeshVec, TransMat );
 }
 
+void MeshGeom::WaveStartEnd( const double &sliceAngle, const vec3d &center )
+{
+    int ntheta = WaveDragMgr.m_NTheta;
+
+    double Mach = 1/sin( sliceAngle );
+    double beta = sqrt( Mach*Mach - 1.0 );
+
+    for ( int itheta = 0; itheta < ntheta; itheta++ )
+    {
+        WaveDragMgr.m_StartX[itheta] = DBL_MAX;
+        WaveDragMgr.m_EndX[itheta] = -DBL_MAX;
+
+        double theta = WaveDragMgr.m_ThetaRad[itheta];
+
+        for ( int i = 0 ; i < ( int )m_TMeshVec.size() ; i++ )
+        {
+            for ( int j = 0 ; j < ( int )m_TMeshVec[i]->m_TVec.size() ; j++ )
+            {
+                for ( int k = 0; k < 3; k++ )
+                {
+                    vec3d pt = m_TMeshVec[i]->m_TVec[j]->GetTriNode(k)->m_Pnt;
+
+                    double xcon = beta * cos( theta - 0.5 * PI ) * ( pt.y() - center.y() ) + beta * sin( theta + 0.5 * PI ) * ( pt.z() - center.z() );
+                    double xwave = pt.x() - xcon;
+                    if ( xwave < WaveDragMgr.m_StartX[itheta] )
+                    {
+                        WaveDragMgr.m_StartX[itheta] = xwave;
+                    }
+                    if ( xwave > WaveDragMgr.m_EndX[itheta] )
+                    {
+                        WaveDragMgr.m_EndX[itheta] = xwave;
+                    }
+                }
+            }
+        }
+
+        // Offset slightly to ensure good intersection when aircraft face lies on cutting plane
+        WaveDragMgr.m_StartX[itheta] += 1e-3;
+        WaveDragMgr.m_EndX[itheta] -= 1e-3;
+    }
+}
+
+
+//==== Call After BndBoxes Have Been Created But Before Intersect ====//
+void MeshGeom::WaveDragSlice( int numSlices, double sliceAngle, int coneSections,
+                           const vector <string> & Flow_vec, bool Symm )
+{
+    //==== Update Bnd Box ====//
+    UpdateBBox();
+
+    // Get y, z dimensions of bounding box
+    vec3d center = m_BBox.GetCenter();
+    // Create a length 2% longer than longest bounding box side
+    double size = m_BBox.GetLargestDist() * 1.02;
+
+    // Set up theta angles around the cone.
+    WaveDragMgr.SetupTheta( coneSections );
+
+    //==== "Smart" Start/End Slice and Tube Routine ====//
+    // Uses Mach and theta angles with aircraft nodes to determine start/end locations for slicing and
+    // flow-through tube extensions
+
+    WaveStartEnd( sliceAngle, center );
+
+    // Emphasize limited scope of intermediate calculations.
+    double tubestart, tubeend;
+    {
+        // Set global start/end slice locations
+        double startX_global = *(min_element( WaveDragMgr.m_StartX.begin(), WaveDragMgr.m_StartX.end() ));
+        double endX_global = *(max_element( WaveDragMgr.m_EndX.begin(), WaveDragMgr.m_EndX.end() ));
+
+        // Set flow-through extension start/end locations
+        double tubedist = 0.5 * size * sin( 0.5*PI - sliceAngle) / sin( sliceAngle );
+        tubestart = startX_global - tubedist * 1.1;
+        tubeend = endX_global + tubedist * 1.1;
+    }
+
+    //==== Flow-Through Accomodation Routine ====//
+    // Extends designated subsurfaces outside slicing range (flow-through stream tubes)
+
+    // Make TMesh* vector for the tubes connecting translated subsurfaces to their parent components
+    vector< TMesh* > ss_tube_meshes;
+
+    // Indexes of m_TMeshVec that will be used in merging tube extensions
+    vector< int > mergeindex;
+
+    vector<string> InletSS_vec;
+    vector<string> ExitSS_vec;
+
+    int ambcount = 0;
+    WaveDragMgr.m_AmbigSubSurf = false;
+
+    for ( int i = 0 ; i < ( int )m_TMeshVec.size() ; i++ )
+    {
+        // Get vector of all subsurface pointers in current TMesh
+        vector< SubSurface* > sub_surf_vec = SubSurfaceMgr.GetSubSurfs( m_TMeshVec[i]->m_PtrID, m_TMeshVec[i]->m_SurfNum );
+
+        for ( int ssv = 0 ; ssv < ( int )sub_surf_vec.size(); ssv++ )
+        {
+            // Populate vector of TMesh* for current subsurface
+            vector< TMesh* > sub_surf_meshes;
+            string subsurf_id = sub_surf_vec[ssv]->GetID();
+            if ( vector_contains_val( Flow_vec, subsurf_id ) == true )
+            {
+                vector< TMesh* > tmp_vec = sub_surf_vec[ssv]->CreateTMeshVec();
+                sub_surf_meshes.insert( sub_surf_meshes.end(), tmp_vec.begin(), tmp_vec.end() );
+            }
+
+            if ( !sub_surf_meshes.size() )
+            {
+                continue;
+            }
+
+            // Create tube extension location
+            double tloc = 0;
+            bool ambflag = 0;
+            for ( int ssm = 0 ; ssm < ( int )sub_surf_meshes.size() ; ssm++ )
+            {
+                // Build merge maps
+                m_TMeshVec[i]->BuildMergeMaps();
+
+                // Load sub_surf_meshes[ss]'s bbox
+                sub_surf_meshes[ssm]->LoadBndBox();
+
+                // Swap the m_TMeshVec[i]'s nodes to be UW instead of xyz
+                m_TMeshVec[i]->MakeNodePntUW();
+                m_TMeshVec[i]->LoadBndBox();
+
+                // Intersect TMesh with sub_surface_meshes[ss]
+                m_TMeshVec[i]->Intersect( sub_surf_meshes[ssm], true );
+
+                // Split the triangles
+                m_TMeshVec[i]->Split();
+
+                // Make current m_TMeshVec[i] XYZ again and reset its octtree
+                m_TMeshVec[i]->MakeNodePntXYZ();
+                m_TMeshVec[i]->m_TBox.Reset();
+
+                // Get and count negative and positive norm x values for all tris in current subsurface
+                int negnorm = 0;
+                int posnorm = 0;
+                for( int t = 0; t < m_TMeshVec[i]->m_TVec.size(); t++ )
+                {
+                    if ( sub_surf_vec[ssv]->Subtag( m_TMeshVec[i]->m_TVec[t] ) )
+                    {
+                        double normcheck = m_TMeshVec[i]->m_TVec[t]->m_Norm.x();
+                        if ( normcheck < 0 )
+                        {
+                            negnorm += 1;
+                        }
+                        else if ( normcheck > 0 )
+                        {
+                            posnorm += 1;
+                        }
+                    }
+                }
+
+                // Check negative/positive x norm counts and set tube extension direction
+                if ( negnorm > 0 && posnorm > 0 )
+                {
+                    // Subsurf mesh direction is ambiguous. Set flag to true, advance count.
+                	ambflag = 1;
+                    ambcount += 1;
+                }
+                else if ( negnorm > 0 )
+                {
+                    tloc = tubestart;
+                }
+                else if ( posnorm > 0 )
+                {
+                    tloc = tubeend;
+                }
+
+                if ( !ambflag ) // If subsurf mesh is NOT ambiguous, build tube
+                {
+                    // Build extension tube
+                    TMesh* tempmesh = new TMesh();
+                    ss_tube_meshes.push_back( tempmesh );
+                    for ( int n = 0; n < sub_surf_meshes[ssm]->m_TVec.size(); n++ )
+                    {
+                        // For all nodes along the subsurface intersection
+                        TTri* currtri = sub_surf_meshes[ssm]->m_TVec[n];
+                        for ( int nn = 0; nn < currtri->m_ISectEdgeVec.size(); nn++ )
+                        {
+                            // Build nodes and norm for first triangle at this intersection edge
+                            vec3d tt0_N0( currtri->m_ISectEdgeVec[nn]->m_N0->GetXYZPnt() );
+                            vec3d tt0_N1( currtri->m_ISectEdgeVec[nn]->m_N1->GetXYZPnt() );
+                            vec3d tt0_N2( tt0_N0 );
+                            tt0_N2.set_x( tloc );
+                            vec3d tt0_norm = cross( tt0_N2-tt0_N1, tt0_N0-tt0_N1 );
+                            tt0_norm.normalize();
+
+                            // Build nodes and norm for second triangle at this intersection edge
+                            vec3d tt1_N0( tt0_N2 );
+                            vec3d tt1_N1( tt0_N1 );
+                            tt1_N1.set_x( tloc );
+                            vec3d tt1_N2( tt0_N1 );
+                            vec3d tt1_norm = cross( tt1_N0-tt1_N1, tt1_N2-tt1_N1 );
+                            tt1_norm.normalize();
+
+                            // Add the triangles to the mesh
+                            tempmesh->AddTri( tt0_N0, tt0_N1, tt0_N2, tt0_norm );
+                            tempmesh->AddTri( tt1_N0, tt1_N1, tt1_N2, tt1_norm );
+                        }
+                    }
+                    mergeindex.push_back( i );
+                }
+
+                // Flatten mesh
+                TMesh* f_tmesh = new TMesh();
+                f_tmesh->CopyFlatten( m_TMeshVec[i] );
+                delete m_TMeshVec[i];
+                m_TMeshVec[i] = f_tmesh;
+            }
+
+            // Pushes current subsurface pointer to either inlet or exit string vector
+            if ( tloc == tubestart && !ambflag )
+            {
+                InletSS_vec.push_back( sub_surf_vec[ssv]->GetID() );
+            }
+            else if ( tloc == tubeend && !ambflag )
+            {
+                ExitSS_vec.push_back( sub_surf_vec[ssv]->GetID() );
+            }
+        }
+    }
+    // Tag meshes before regular intersection
+    SubTagTris( 1 );
+
+    if ( ambcount > 0 )
+    {
+        WaveDragMgr.m_AmbigSubSurf = true;
+    }
+
+
+    // Create vectors of triangle tags for inlets and exits
+    vector<int> fwd_ss_tags;
+    vector<int> bwd_ss_tags;
+    vector< SubSurface* > subsurf_vec = SubSurfaceMgr.GetSubSurfs();
+    for ( int i = 0; i < subsurf_vec.size(); i++ )
+    {
+        if ( vector_contains_val( InletSS_vec, subsurf_vec[i]->GetID() ) )
+        {
+            fwd_ss_tags.push_back( i + 1 + m_TMeshVec.size() );
+        }
+        else if ( vector_contains_val( ExitSS_vec, subsurf_vec[i]->GetID() ) )
+        {
+            bwd_ss_tags.push_back( i + 1 + m_TMeshVec.size() );
+        }
+    }
+
+    int translated = 0;
+    // Translate all flow-through triangles
+    for ( int i = 0; i < m_TMeshVec.size(); i ++ )
+    {
+        for ( int j = 0; j < m_TMeshVec[i]->m_TVec.size(); j++ )
+        {
+            for ( int k = 0; k < m_TMeshVec[i]->m_TVec[j]->m_Tags.size(); k++ )
+            {
+                int tag_num = m_TMeshVec[i]->m_TVec[j]->m_Tags[k];
+                bool fwd_test = vector_contains_val( fwd_ss_tags, tag_num );
+                bool bwd_test = vector_contains_val( bwd_ss_tags, tag_num );
+                if ( fwd_test )
+                {
+                    translated += 1;
+                    // Translate the subsurface forward
+                    m_TMeshVec[i]->m_TVec[j]->m_N0->m_Pnt.set_x( tubestart );
+                    m_TMeshVec[i]->m_TVec[j]->m_N1->m_Pnt.set_x( tubestart );
+                    m_TMeshVec[i]->m_TVec[j]->m_N2->m_Pnt.set_x( tubestart );
+                }
+                else if ( bwd_test )
+                {
+                    // Translate the subsurface backward
+                    m_TMeshVec[i]->m_TVec[j]->m_N0->m_Pnt.set_x( tubeend );
+                    m_TMeshVec[i]->m_TVec[j]->m_N1->m_Pnt.set_x( tubeend );
+                    m_TMeshVec[i]->m_TVec[j]->m_N2->m_Pnt.set_x( tubeend );
+                }
+            }
+        }
+    }
+
+    //==== Count Components ====//
+    vector< string > compIdVec;
+    for ( int i = 0 ; i < ( int )m_TMeshVec.size() ; i++ )
+    {
+        string id = m_TMeshVec[i]->m_PtrID;
+        vector<string>::iterator iter;
+
+        iter = find( compIdVec.begin(), compIdVec.end(), id );
+
+        if ( iter == compIdVec.end() )
+        {
+            compIdVec.push_back( id );
+        }
+    }
+
+    WaveDragMgr.Setup( numSlices, compIdVec.size() );
+
+    WaveDragMgr.m_CompIDVec = compIdVec;
+
+    // Merge tubes with their corresponding components
+    for ( int i = 0 ; i < mergeindex.size() ; i++ )
+    {
+        m_TMeshVec[ mergeindex[i] ]->MergeTMeshes( ss_tube_meshes[i] );
+        delete ss_tube_meshes[i];
+    }
+
+    // Merge and remove any remaining open meshes
+    MeshInfo info;
+    MergeRemoveOpenMeshes( &info );
+
+    //==== Create Bnd Box for Mesh Geoms ====//
+    for ( int i = 0 ; i < ( int )m_TMeshVec.size() ; i++ )
+    {
+        m_TMeshVec[i]->LoadBndBox();
+    }
+
+    //==== Update mesh Bnd Box to include streamtube extensions ====//
+    m_BBox.Reset();
+    for ( int i = 0 ; i < ( int )m_TMeshVec.size() ; i++ )
+    {
+        m_BBox.Update( m_TMeshVec[i]->m_TBox.m_Box );
+    }
+
+    //==== Intersect All Mesh Geoms (before slicing) ====//
+    for ( int i = 0 ; i < ( int )m_TMeshVec.size() ; i++ )
+    {
+        for ( int j = i + 1 ; j < ( int )m_TMeshVec.size() ; j++ )
+        {
+            m_TMeshVec[i]->Intersect( m_TMeshVec[j] );
+        }
+    }
+
+    //==== Split Intersected Tri in Mesh ====//
+    for ( int i = 0 ; i < ( int )m_TMeshVec.size() ; i++ )
+    {
+        m_TMeshVec[i]->Split();
+    }
+
+    WaveDragMgr.m_XNorm.resize( numSlices );
+    for ( int islice = 0 ; islice < numSlices ; islice++ )
+    {
+        WaveDragMgr.m_XNorm[islice] = ( ( double )islice / ( double )( numSlices - 1 ) );
+    }
+
+    //==== Build Slice Mesh Object =====//
+    for ( int islice = 0 ; islice < numSlices ; islice++ )
+    {
+        // For number of rotation sections, rotate  slices about x-axis
+        for ( int itheta = 0; itheta < coneSections; itheta++ )
+        {
+            TMesh* tm = new TMesh();
+            m_SliceVec.push_back( tm );
+
+            // Location of theta slices on x-axis
+            double xcenter = WaveDragMgr.m_StartX[itheta] + WaveDragMgr.m_XNorm[islice] * ( WaveDragMgr.m_EndX[itheta] - WaveDragMgr.m_StartX[itheta] );
+
+            // Current theta (checks for XZ symmetry option)
+            double theta = WaveDragMgr.m_ThetaRad[itheta];
+
+            // Establish generic plane
+            int ngp = 4;
+            vector< vec3d > gp(ngp);
+            gp[0].set_xyz( 0,  2.5*size,  2.5*size );
+            gp[1].set_xyz( 0, -2.5*size,  2.5*size );
+            gp[2].set_xyz( 0, -2.5*size, -2.5*size );
+            gp[3].set_xyz( 0,  2.5*size, -2.5*size );
+
+            for ( int m = 0; m < ngp; m++ )
+            {
+                // Rotate plane to Mach angle
+                gp[m].rotate_y( cos(-( 0.5*PI-sliceAngle)), sin(-( 0.5*PI-sliceAngle)) );
+                // Rotate plane to current theta
+                gp[m].rotate_x( cos(theta), sin(theta) );
+                // Translate plane to current x
+                gp[m].offset_x( xcenter );
+                // Relocate to center YZ
+                gp[m].offset_y( center.y() );
+                gp[m].offset_z( center.z() );
+            }
+
+            // Get plane normal
+            vec3d gpnorm = cross( gp[3]-gp[2], gp[1]-gp[2] );
+            gpnorm.normalize();
+
+            // Build triangles
+            tm->AddTri( gp[2], gp[3], gp[0], gpnorm );
+            tm->AddTri( gp[2], gp[0], gp[1], gpnorm );
+        }
+    }
+
+    // Tube Slice: Start/End Locations
+    vector<double> tubeslicesX;
+    if ( Flow_vec.size() > 0 ) // Tubes exist, slice just inside them
+    {
+        tubeslicesX.push_back( tubestart + 0.001 );
+        tubeslicesX.push_back( tubeend - 0.001 );
+    }
+    else // Tubes don't exist, slice just outside the aircraft
+    {
+        tubeslicesX.push_back( tubestart - 0.001 );
+        tubeslicesX.push_back( tubeend + 0.001 );
+    }
+
+    //==== Build Tube Slice Mesh Objects =====//
+    for ( int itube = 0 ; itube < tubeslicesX.size() ; itube++ )
+    {
+        TMesh* tm = new TMesh();
+        m_SliceVec.push_back( tm );
+
+        // Location of theta slices on x-axis
+        double xcenter = (double)tubeslicesX[itube];
+
+        // Establish generic plane
+        int ngp = 4;
+        vector< vec3d > gp(ngp);
+        gp[0].set_xyz( 0,  2.5*size,  2.5*size );
+        gp[1].set_xyz( 0, -2.5*size,  2.5*size );
+        gp[2].set_xyz( 0, -2.5*size, -2.5*size );
+        gp[3].set_xyz( 0,  2.5*size, -2.5*size );
+
+        // Get plane normal
+        vec3d gpnorm = cross( gp[3]-gp[2], gp[1]-gp[2] );
+        gpnorm.normalize();
+
+        // Move plane to current slice section location
+        for ( int m = 0; m < ngp; m++ )
+        {
+            // Translate plane to current x
+            gp[m].offset_x( xcenter );
+            // Relocate to center YZ
+            gp[m].offset_y( center.y() );
+            gp[m].offset_z( center.z() );
+        }
+
+        // Build triangles
+        tm->AddTri( gp[2], gp[3], gp[0], gpnorm );
+        tm->AddTri( gp[2], gp[0], gp[1], gpnorm );
+    }
+
+    //==== Load Bnding Box ====//
+    for ( int islice = 0 ; islice < ( int )m_SliceVec.size() ; islice++ )
+    {
+        TMesh* tm = m_SliceVec[islice];
+        tm->LoadBndBox();
+
+        //==== Intersect All Mesh Geoms ====//
+        for ( int i = 0 ; i < ( int )m_TMeshVec.size() ; i++ )
+        {
+            tm->Intersect( m_TMeshVec[i] );
+
+            for ( int j = 0 ; j < ( int )m_TMeshVec[i]->m_TVec.size() ; j++ )
+            {
+                TTri* tri = m_TMeshVec[i]->m_TVec[j];
+                for ( int e = 0 ; e < ( int )tri->m_ISectEdgeVec.size() ; e++ )
+                {
+                    delete tri->m_ISectEdgeVec[e]->m_N0;
+                    delete tri->m_ISectEdgeVec[e]->m_N1;
+                    delete tri->m_ISectEdgeVec[e];
+                }
+                tri->m_ISectEdgeVec.erase( tri->m_ISectEdgeVec.begin(), tri->m_ISectEdgeVec.end() );
+            }
+        }
+
+        //==== Split Intersected Tri in Mesh ====//
+        tm->Split();
+
+        //==== Determine Which Triangles Are Interior/Exterior ====//
+        tm->WaveDeterIntExt( m_TMeshVec );
+
+        //==== Flip Int/Ext Flags ====//
+        for ( int i = 0 ; i < ( int )tm->m_TVec.size() ; i++ )
+        {
+            TTri* tri = tm->m_TVec[i];
+            if ( tri->m_SplitVec.size() )
+            {
+                for ( int j = 0 ; j < ( int )tri->m_SplitVec.size() ; j++ )
+                {
+                    tri->m_SplitVec[j]->m_InteriorFlag = !( tri->m_SplitVec[j]->m_InteriorFlag );
+                }
+            }
+            else
+            {
+                tri->m_InteriorFlag = !( tri->m_InteriorFlag );
+            }
+        }
+    }
+
+    //==== Pushback slice and area results ====//
+    // Make ID lookup map.
+    std::map< string, int > compIdMap;
+    for ( int icomp = 0; icomp < compIdVec.size(); icomp++ )
+    {
+        compIdMap[ compIdVec[icomp] ] = icomp;
+    }
+
+    m_SliceVec[numSlices*coneSections]->m_CompAreaVec.resize( compIdVec.size() );
+    double inA = m_SliceVec[numSlices*coneSections]->ComputeWaveDragArea( compIdMap );
+    WaveDragMgr.m_InletArea = inA;
+
+    m_SliceVec[numSlices*coneSections+1]->m_CompAreaVec.resize( compIdVec.size() );
+    double exA = m_SliceVec[numSlices*coneSections+1]->ComputeWaveDragArea( compIdMap );
+    WaveDragMgr.m_ExitArea = exA;
+
+
+    for ( int islice = 0 ; islice < numSlices ; islice++ )
+    {
+        for ( int itheta = 0; itheta < coneSections; itheta++ )
+        {
+            int sindex = ( int )( islice * coneSections + itheta );
+
+            m_SliceVec[sindex]->m_CompAreaVec.resize( compIdVec.size() );
+            m_SliceVec[sindex]->ComputeWaveDragArea( compIdMap );
+
+            for ( int icomp = 0; icomp < compIdVec.size(); icomp++ )
+            {
+                WaveDragMgr.m_CompSliceAreaDist[itheta][icomp][islice]= m_SliceVec[sindex]->m_CompAreaVec[icomp];
+            }
+            WaveDragMgr.m_SliceAreaDist[itheta][islice] = m_SliceVec[sindex]->m_WetArea;
+        }
+    }
+}
 
 vector<vec3d> MeshGeom::TessTri( vec3d t1, vec3d t2, vec3d t3, int iterations )
 {
@@ -2624,9 +2882,10 @@ void MeshGeom::MassSliceX( int numSlices, bool writefile )
 
     //==== Create Results ====//
     Results* res = ResultsMgr.CreateResults( "Mass_Properties" );
-    res->Add( ResData( "Num_Degen_Triangles_Removed", info.m_NumDegenerateTriDeleted ) );
-    res->Add( ResData( "Num_Open_Meshes_Removed", info.m_NumOpenMeshedDeleted ) );
-    res->Add( ResData( "Num_Open_Meshes_Merged", info.m_NumOpenMeshesMerged ) );
+    res->Add( NameValData( "Num_Degen_Triangles_Removed", info.m_NumDegenerateTriDeleted ) );
+    res->Add( NameValData( "Num_Open_Meshes_Removed", info.m_NumOpenMeshedDeleted ) );
+    res->Add( NameValData( "Num_Open_Meshes_Merged", info.m_NumOpenMeshesMerged ) );
+    res->Add( NameValData( "Mesh_GeomID", this->GetID() ) );
 
     //==== Count Tris ====//
     int numTris = 0;
@@ -2641,8 +2900,8 @@ void MeshGeom::MassSliceX( int numSlices, bool writefile )
         m_TMeshVec[i]->m_PtrID.append( std::to_string( (long long) i ) );
     }
 
-    res->Add( ResData( "Num_Total_Meshes", ( int )m_TMeshVec.size() ) );
-    res->Add( ResData( "Num_Total_Tris", numTris ) );
+    res->Add( NameValData( "Num_Total_Meshes", ( int )m_TMeshVec.size() ) );
+    res->Add( NameValData( "Num_Total_Tris", numTris ) );
 
     //==== Create Bnd Box for  Mesh Geoms ====//
     for ( i = 0 ; i < ( int )m_TMeshVec.size() ; i++ )
@@ -3003,29 +3262,29 @@ void MeshGeom::MassSliceX( int numSlices, bool writefile )
         vol_vec.push_back( compVol );
     }
 
-    res->Add( ResData( "Num_Comps", ( int )name_vec.size() ) );
-    res->Add( ResData( "Comp_Name", name_vec ) );
-    res->Add( ResData( "Comp_ID", id_vec ) );
-    res->Add( ResData( "Comp_Mass", mass_vec ) );
-    res->Add( ResData( "Comp_CG", cg_vec ) );
-    res->Add( ResData( "Comp_Ixx", ixx_vec ) );
-    res->Add( ResData( "Comp_Iyy", iyy_vec ) );
-    res->Add( ResData( "Comp_Izz", izz_vec ) );
-    res->Add( ResData( "Comp_Ixy", ixy_vec ) );
-    res->Add( ResData( "Comp_Ixz", ixz_vec ) );
-    res->Add( ResData( "Comp_Iyz", iyz_vec ) );
-    res->Add( ResData( "Comp_Vol", vol_vec ) );
+    res->Add( NameValData( "Num_Comps", ( int )name_vec.size() ) );
+    res->Add( NameValData( "Comp_Name", name_vec ) );
+    res->Add( NameValData( "Comp_ID", id_vec ) );
+    res->Add( NameValData( "Comp_Mass", mass_vec ) );
+    res->Add( NameValData( "Comp_CG", cg_vec ) );
+    res->Add( NameValData( "Comp_Ixx", ixx_vec ) );
+    res->Add( NameValData( "Comp_Iyy", iyy_vec ) );
+    res->Add( NameValData( "Comp_Izz", izz_vec ) );
+    res->Add( NameValData( "Comp_Ixy", ixy_vec ) );
+    res->Add( NameValData( "Comp_Ixz", ixz_vec ) );
+    res->Add( NameValData( "Comp_Iyz", iyz_vec ) );
+    res->Add( NameValData( "Comp_Vol", vol_vec ) );
 
     //==== Totals ====//
-    res->Add( ResData( "Total_Mass", m_TotalMass ) );
-    res->Add( ResData( "Total_CG", m_CenterOfGrav ) );
-    res->Add( ResData( "Total_Ixx", m_TotalIxx ) );
-    res->Add( ResData( "Total_Iyy", m_TotalIyy ) );
-    res->Add( ResData( "Total_Izz", m_TotalIzz ) );
-    res->Add( ResData( "Total_Ixy", m_TotalIxy ) );
-    res->Add( ResData( "Total_Ixz", m_TotalIxz ) );
-    res->Add( ResData( "Total_Iyz", m_TotalIyz ) );
-    res->Add( ResData( "Total_Volume", totalVol ) );
+    res->Add( NameValData( "Total_Mass", m_TotalMass ) );
+    res->Add( NameValData( "Total_CG", m_CenterOfGrav ) );
+    res->Add( NameValData( "Total_Ixx", m_TotalIxx ) );
+    res->Add( NameValData( "Total_Iyy", m_TotalIyy ) );
+    res->Add( NameValData( "Total_Izz", m_TotalIzz ) );
+    res->Add( NameValData( "Total_Ixy", m_TotalIxy ) );
+    res->Add( NameValData( "Total_Ixz", m_TotalIxz ) );
+    res->Add( NameValData( "Total_Iyz", m_TotalIyz ) );
+    res->Add( NameValData( "Total_Volume", totalVol ) );
 
     //==== Clean Up Mess ====//
     for ( i = 0 ; i < ( int )tetraVec.size() ; i++ )

@@ -92,6 +92,8 @@ CfdMeshSettings::CfdMeshSettings() : ParmContainer()
     m_ExportFileFlags[ vsp::CFD_GMSH_FILE_NAME ].Init( "GMSH_Export", "ExportCFD", this, true, 0, 1 );
     m_ExportFileFlags[ vsp::CFD_SRF_FILE_NAME ].Init( "SRF_Export", "ExportCFD", this, true, 0, 1 );
     m_ExportFileFlags[ vsp::CFD_TKEY_FILE_NAME ].Init( "TKEY_Export", "ExportCFD", this, true, 0, 1 );
+
+    m_XYZIntCurveFlag.Init( "SRF_XYZIntCurve", "ExportCFD", this, false, 0, 1 );
 }
 
 CfdMeshSettings::~CfdMeshSettings()
@@ -218,12 +220,12 @@ void CfdMeshSettings::SetAllFileExportFlags( bool flag )
 {
     for ( int i = 0 ; i < vsp::CFD_NUM_FILE_NAMES ; i++ )
     {
-		m_ExportFileFlags[i] = flag;
-	}
+        m_ExportFileFlags[i] = flag;
+    }
 }
 
 void CfdMeshSettings::SetFileExportFlag( int type, bool flag )
 {
-	if ( type >= 0 && type < vsp::CFD_NUM_FILE_NAMES )
-		m_ExportFileFlags[type] = flag;
+    if ( type >= 0 && type < vsp::CFD_NUM_FILE_NAMES )
+        m_ExportFileFlags[type] = flag;
 }

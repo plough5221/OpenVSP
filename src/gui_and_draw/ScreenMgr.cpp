@@ -8,12 +8,13 @@
 //////////////////////////////////////////////////////////////////////
 
 #include "AdvLinkScreen.h"
-#include "AwaveScreen.h"
+#include "BEMOptionsScreen.h"
 #include "CfdMeshScreen.h"
 #include "ClippingScreen.h"
 #include "CompGeomScreen.h"
 #include "DegenGeomScreen.h"
 #include "DesignVarScreen.h"
+#include "DXFOptionsScreen.h"
 #include "ExportScreen.h"
 #include "FeaStructScreen.h"
 #include "FitModelScreen.h"
@@ -29,9 +30,11 @@
 #include "ManageViewScreen.h"
 #include "MassPropScreen.h"
 #include "MaterialEditScreen.h"
+#include "SnapToScreen.h"
 #include "ParmDebugScreen.h"
 #include "ParmLinkScreen.h"
 #include "ParmScreen.h"
+#include "ProjectionScreen.h"
 #include "PSliceScreen.h"
 #include "ScreenMgr.h"
 #include "ScreenshotScreen.h"
@@ -40,7 +43,10 @@
 #include "STLOptionsScreen.h"
 #include "TypeEditorScreen.h"
 #include "UserParmScreen.h"
+#include "VarPresetScreen.h"
+#include "VSPAEROPlotScreen.h"
 #include "VSPAEROScreen.h"
+#include "WaveDragScreen.h"
 
 #include <time.h>
 #include <assert.h>
@@ -66,6 +72,8 @@ ScreenMgr::ScreenMgr( Vehicle* vPtr )
     Fl::add_handler( GlobalHandler );
 
     m_RunGUI = true;
+
+    m_ShowPlotScreenOnce = false;
 
 }
 
@@ -93,6 +101,12 @@ void ScreenMgr::TimerCB()
 {
     if ( m_UpdateFlag )
     {
+        if (m_ShowPlotScreenOnce)
+        {
+            m_ShowPlotScreenOnce = false;
+            m_ScreenVec[VSP_MAIN_SCREEN]->Show();   //set main screen as "current" before show
+            m_ScreenVec[VSP_VSPAERO_PLOT_SCREEN]->Show();
+        }
         m_UpdateFlag = false;
         UpdateAllScreens();
     }
@@ -125,10 +139,32 @@ void ScreenMgr::MessageCallback( const MessageBase* from, const MessageData& dat
             }
         }
     }
+    else if ( data.m_String == string( "VSPAEROSolverMessage" ) )
+    {
+        VSPAEROScreen* scr = ( VSPAEROScreen* ) m_ScreenVec[VSP_VSPAERO_SCREEN];
+        if ( scr )
+        {
+            for ( int i = 0; i < (int)data.m_StringVec.size(); i++ )
+            {
+                scr->AddOutputText( scr->GetDisplay( VSPAERO_SOLVER ), data.m_StringVec[i] );
+            }
+        }
+    }
     else if ( data.m_String == string( "Error" ) )
     {
         const char* msg = data.m_StringVec[0].c_str();
         fl_message( "%s", ( char* )msg );
+    }
+    else if ( data.m_String == string( "CheckCollisionKey" ) )
+    {
+        SnapTo* snap = VehicleMgr.GetVehicle()->GetSnapToPtr();
+        if ( snap )
+        {
+            if ( Fl::event_alt()  )
+                snap->m_CollisionDetection = true;
+            else
+                snap->m_CollisionDetection = false;
+        }
     }
 }
 
@@ -138,8 +174,8 @@ void ScreenMgr::Init()
     //==== Build All Screens ====//
     m_ScreenVec.resize( VSP_NUM_SCREENS );
     m_ScreenVec[VSP_ADV_LINK_SCREEN] = new AdvLinkScreen( this );
-    m_ScreenVec[VSP_AWAVE_SCREEN] = new AwaveScreen( this );
     m_ScreenVec[VSP_BACKGROUND_SCREEN] = new ManageBackgroundScreen( this );
+    m_ScreenVec[VSP_BEM_OPTIONS_SCREEN] = new BEMOptionsScreen( this );
     m_ScreenVec[VSP_CFD_MESH_SCREEN] = new CfdMeshScreen( this );
     m_ScreenVec[VSP_CLIPPING_SCREEN] = new ClippingScreen( this );
     m_ScreenVec[VSP_COMP_GEOM_SCREEN] = new CompGeomScreen( this );
@@ -158,18 +194,24 @@ void ScreenMgr::Init()
     m_ScreenVec[VSP_MANAGE_TEXTURE_SCREEN] = new ManageTextureScreen( this );
     m_ScreenVec[VSP_MASS_PROP_SCREEN] = new MassPropScreen( this );
     m_ScreenVec[VSP_MATERIAL_EDIT_SCREEN] = new MaterialEditScreen( this );
+    m_ScreenVec[VSP_SNAP_TO_SCREEN] = new SnapToScreen( this );
     m_ScreenVec[VSP_PARM_DEBUG_SCREEN] = new ParmDebugScreen( this );
     m_ScreenVec[VSP_PARM_LINK_SCREEN] = new ParmLinkScreen( this );
     m_ScreenVec[VSP_PARM_SCREEN] = new ParmScreen( this );
+    m_ScreenVec[VSP_PROJECTION_SCREEN] = new ProjectionScreen( this );
     m_ScreenVec[VSP_PSLICE_SCREEN] = new PSliceScreen( this );
     m_ScreenVec[VSP_SCREENSHOT_SCREEN] = new ScreenshotScreen( this );
     m_ScreenVec[VSP_SET_EDITOR_SCREEN] = new SetEditorScreen( this );
+    m_ScreenVec[VSP_DXF_OPTIONS_SCREEN] = new DXFOptionsScreen( this);
     m_ScreenVec[VSP_STEP_OPTIONS_SCREEN] = new STEPOptionsScreen( this );
     m_ScreenVec[VSP_STL_OPTIONS_SCREEN] = new STLOptionsScreen( this );
     m_ScreenVec[VSP_TYPE_EDITOR_SCREEN] = new TypeEditorScreen( this );
     m_ScreenVec[VSP_USER_PARM_SCREEN] = new UserParmScreen( this );
     m_ScreenVec[VSP_VIEW_SCREEN] = new ManageViewScreen( this );
+    m_ScreenVec[VSP_VAR_PRESET_SCREEN] = new VarPresetScreen( this );
+    m_ScreenVec[VSP_VSPAERO_PLOT_SCREEN] = new VSPAEROPlotScreen( this );
     m_ScreenVec[VSP_VSPAERO_SCREEN] = new VSPAEROScreen( this );
+    m_ScreenVec[VSP_WAVEDRAG_SCREEN] = new WaveDragScreen( this );
     m_ScreenVec[VSP_XSEC_SCREEN] = new XSecViewScreen( this );
 
     m_ScreenVec[VSP_MAIN_SCREEN]->Show();
@@ -182,7 +224,6 @@ void ScreenMgr::Init()
     h1 = m_ScreenVec[VSP_MAIN_SCREEN]->GetFlWindow()->h();
 
     m_ScreenVec[VSP_MANAGE_GEOM_SCREEN]->GetFlWindow()->position(x+w+5,y);
-    m_ScreenVec[VSP_MANAGE_GEOM_SCREEN]->Show();
 
     h2 = m_ScreenVec[VSP_XSEC_SCREEN]->GetFlWindow()->h();
     m_ScreenVec[VSP_XSEC_SCREEN]->GetFlWindow()->position( x + w + 5, y + h1 - h2 );
@@ -201,6 +242,9 @@ void ScreenMgr::Init()
             m_ScreenVec[i]->GetFlWindow()->set_non_modal();
         }
     }
+
+    // Show() after setting non_modal, as modality can not change if window shown.
+    m_ScreenVec[VSP_MANAGE_GEOM_SCREEN]->Show();
 }
 
 //==== Update All Displayed Screens ====//

@@ -132,7 +132,7 @@ class TabScreen : public BasicScreen
 {
 public:
 
-    TabScreen( ScreenMgr* mgr, int w, int h, const string & title, int baseymargin = 0 );
+    TabScreen( ScreenMgr* mgr, int w, int h, const string & title, int baseymargin = 0, int basexmargin = 0 );
     virtual ~TabScreen();
 
     virtual bool Update()
@@ -254,8 +254,8 @@ public:
     ToggleButton m_RotUVButton;
     ToggleRadioGroup m_RotToggleGroup;
 
-    SliderInput m_AttachUSlider;
-    SliderInput m_AttachVSlider;
+    SliderAdjRangeInput m_AttachUSlider;
+    SliderAdjRangeInput m_AttachVSlider;
 
     //====== SubSurface Tab =====//
     int m_SubSurfTab_ind;
@@ -319,10 +319,15 @@ public:
 
     ToggleButton m_SSConSEConstButton;
 
+    ToggleButton m_SSConLEFlagButton;
+
     ToggleButton m_SSConInsideButton;
     ToggleButton m_SSConOutsideButton;
     ToggleRadioGroup m_SSConTestToggleGroup;
     Choice m_SSConSurfTypeChoice;
+
+protected:
+    bool m_RotActive;
 };
 
 //==== Skin Screen ====//

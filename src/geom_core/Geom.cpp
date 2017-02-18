@@ -8,10 +8,12 @@
 #include "Geom.h"
 #include "Vehicle.h"
 #include "StlHelper.h"
+#include "DXFUtil.h"
 #include "StringUtil.h"
 #include "ParmMgr.h"
 #include "SubSurfaceMgr.h"
 #include "APIDefines.h"
+#include "HingeGeom.h"
 using namespace vsp;
 
 #include <time.h>
@@ -123,6 +125,15 @@ void GeomBase::ParmChanged( Parm* parm_ptr, int type )
         return;
     }
 
+    //==== Check For Interactive Collision Dectection When Alt Key Is Pressed ====//
+    if ( type == Parm::SET_FROM_DEVICE )
+    {
+        if ( parm_ptr )
+        {
+            m_Vehicle->GetSnapToPtr()->PreventCollision( GetID(), parm_ptr->GetID() );
+        }
+    }
+
     Update();
     m_Vehicle->ParmChanged( parm_ptr, type );
     m_UpdatedParmVec.clear();
@@ -179,6 +190,20 @@ int GeomBase::CountParents( int count )
         return parentPtr->CountParents( count );
     }
     return count;
+}
+
+bool GeomBase::IsParentJoint()
+{
+    GeomBase* parentPtr = m_Vehicle->FindGeom( m_ParentID );
+    if ( parentPtr )
+    {
+        HingeGeom* hingeParentPtr = dynamic_cast < HingeGeom* > ( parentPtr );
+        if ( hingeParentPtr )
+        {
+            return true;
+        }
+    }
+    return false;
 }
 
 string GeomBase::GetAncestorID( int gen )
@@ -279,8 +304,8 @@ xmlNodePtr GeomBase::DecodeXml( xmlNodePtr & node )
     xmlNodePtr child_node = XmlUtil::GetNode( node, "GeomBase", 0 );
     if ( child_node )
     {
-        m_Type.m_Name   = XmlUtil::FindString( child_node, "TypeName", m_Type.m_Name );
-        m_Type.m_Type   = XmlUtil::FindInt( child_node, "TypeID", m_Type.m_Type );
+        //m_Type.m_Name   = XmlUtil::FindString( child_node, "TypeName", m_Type.m_Name );
+        //m_Type.m_Type   = XmlUtil::FindInt( child_node, "TypeID", m_Type.m_Type );
         m_Type.m_FixedFlag = !!XmlUtil::FindInt( child_node, "TypeFixed", m_Type.m_FixedFlag );
         m_ParentID = ParmMgr.RemapID( XmlUtil::FindString( child_node, "ParentID", m_ParentID ) );
 
@@ -337,16 +362,15 @@ GeomXForm::GeomXForm( Vehicle* vehicle_ptr ) : GeomBase( vehicle_ptr )
     m_ZRelRot.SetDescript( "Z Rotation Relative to Parent" );
 
     // Attachment Parms
-    m_AbsRelFlag.Init( "Abs_Or_Relitive_flag", "XForm", this, RELATIVE_XFORM, ABSOLUTE_XFORM, RELATIVE_XFORM, false );
-    m_TransAttachFlag.Init( "Trans_Attach_Flag", "Attach", this, ATTACH_TRANS_NONE, ATTACH_TRANS_NONE, ATTACH_TRANS_UV, false );
+    m_AbsRelFlag.Init( "Abs_Or_Relitive_flag", "XForm", this, RELATIVE_XFORM, ABSOLUTE_XFORM, RELATIVE_XFORM );
+    m_TransAttachFlag.Init( "Trans_Attach_Flag", "Attach", this, ATTACH_TRANS_NONE, ATTACH_TRANS_NONE, ATTACH_TRANS_UV );
     m_TransAttachFlag.SetDescript( "Determines relative translation coordinate system" );
-    m_RotAttachFlag.Init( "Rots_Attach_Flag", "Attach", this, ATTACH_ROT_NONE, ATTACH_ROT_NONE, ATTACH_ROT_UV, false );
+    m_RotAttachFlag.Init( "Rots_Attach_Flag", "Attach", this, ATTACH_ROT_NONE, ATTACH_ROT_NONE, ATTACH_ROT_UV );
     m_RotAttachFlag.SetDescript( "Determines relative rotation axes" );
     m_ULoc.Init( "U_Attach_Location", "Attach", this, 1e-6, 1e-6, 1 - 1e-6 );
     m_ULoc.SetDescript( "U Location of Parent's Surface" );
     m_WLoc.Init( "V_Attach_Location", "Attach", this, 1e-6, 1e-6, 1 - 1e-6 );
     m_WLoc.SetDescript( "V Location of Parent's Surface" );
-    m_relFlag.Init( "Abs_Rel_Flag", "Attach", this, true, 0, 1 );
 
     m_Scale.Init( "Scale", "XForm", this, 1, 1.0e-3, 1.0e3 );
     m_Scale.SetDescript( "Scale Geometry Size" );
@@ -370,6 +394,27 @@ GeomXForm::~GeomXForm()
 void GeomXForm::Update( bool fullupdate )
 {
     ComposeModelMatrix();
+
+    double axlen = 1.0;
+
+    Vehicle *veh = VehicleMgr.GetVehicle();
+    if ( veh )
+    {
+        axlen = veh->m_AxisLength();
+    }
+
+    Matrix4d attachedMat = ComposeAttachMatrix();
+
+    m_AttachOrigin = attachedMat.xform( vec3d( 0.0, 0.0, 0.0 ) );
+
+    m_AttachAxis.clear();
+    m_AttachAxis.resize( 3 );
+    for ( int i = 0; i < 3; i++ )
+    {
+        vec3d pt = vec3d( 0.0, 0.0, 0.0 );
+        pt.v[i] = axlen;
+        m_AttachAxis[i] = attachedMat.xform( pt );
+    }
 }
 
 //==== Update XForm ====//
@@ -445,13 +490,25 @@ Matrix4d GeomXForm::ComposeAttachMatrix()
 {
     Matrix4d attachedMat;
     attachedMat.loadIdentity();
+
+    Geom* parent = m_Vehicle->FindGeom( GetParentID() );
+
+    if ( parent )
+    {
+        HingeGeom* hingeparent = dynamic_cast < HingeGeom* > ( parent );
+        if ( hingeparent )
+        {
+            attachedMat = hingeparent->GetJointMatrix();
+            return attachedMat;
+        }
+    }
+
     // If both attachment flags set to none, return identity
     if ( m_TransAttachFlag() == ATTACH_TRANS_NONE && m_RotAttachFlag() == ATTACH_ROT_NONE )
     {
         return attachedMat;
     }
 
-    Geom* parent = m_Vehicle->FindGeom( GetParentID() );
     if ( parent )
     {
         Matrix4d transMat;
@@ -461,32 +518,26 @@ Matrix4d GeomXForm::ComposeAttachMatrix()
         parentMat = parent->getModelMatrix();
         double tempMat[16];
         parentMat.getMat( tempMat );
-        VspSurf* surf_ptr =  parent->GetSurfPtr();
 
         bool revertCompTrans = false;
         bool revertCompRot = false;
 
+        // Parent CompXXXCoordSys methods query the positioned m_SurfVec[0] surface,
+        // not m_MainSurfVec[0].  Consequently, m_ModelMatrix is already implied in
+        // these calculations and does not need to be applied again.
         if ( m_TransAttachFlag() == ATTACH_TRANS_UV )
         {
-            if ( surf_ptr )
+            if ( !( parent->CompTransCoordSys( m_ULoc(), m_WLoc(), transMat ) ) )
             {
-                transMat = surf_ptr->CompTransCoordSys( m_ULoc(), m_WLoc() );
-            }
-            else
-            {
-                revertCompTrans = true;
+                revertCompTrans = true; // Blank components revert to the component matrix.
             }
         }
 
         if ( m_RotAttachFlag() == ATTACH_ROT_UV )
         {
-            if ( surf_ptr )
+            if ( !( parent->CompRotCoordSys( m_ULoc(), m_WLoc(), rotMat ) ) )
             {
-                rotMat = surf_ptr->CompRotCoordSys( m_ULoc(), m_WLoc() );
-            }
-            else
-            {
-                revertCompRot = true;
+                revertCompRot = true; // For blank component.
             }
         }
 
@@ -544,6 +595,21 @@ void GeomXForm::DeactivateXForms()
         m_XRot.Activate();
         m_YRot.Activate();
         m_ZRot.Activate();
+    }
+
+    if ( IsParentJoint() )
+    {
+        m_ULoc.Deactivate();
+        m_WLoc.Deactivate();
+        m_TransAttachFlag.Deactivate();
+        m_RotAttachFlag.Deactivate();
+    }
+    else
+    {
+        m_ULoc.Activate();
+        m_WLoc.Activate();
+        m_TransAttachFlag.Activate();
+        m_RotAttachFlag.Activate();
     }
 }
 
@@ -725,10 +791,10 @@ Geom::Geom( Vehicle* vehicle_ptr ) : GeomXForm( vehicle_ptr )
     }
     UpdateSets();
 
-    m_SymAncestor.Init( "Sym_Ancestor", "Sym", this, 1, 0, 1e6, true );
-    m_SymAncestOriginFlag.Init( "Sym_Ancestor_Origin_Flag", "Sym", this, true, 0, 1, true );
-    m_SymPlanFlag.Init( "Sym_Planar_Flag", "Sym", this, 0, 0, SYM_XY | SYM_XZ | SYM_YZ, true );
-    m_SymAxFlag.Init( "Sym_Axial_Flag", "Sym", this, 0, 0, SYM_ROT_Z, true );
+    m_SymAncestor.Init( "Sym_Ancestor", "Sym", this, 1, 0, 1e6 );
+    m_SymAncestOriginFlag.Init( "Sym_Ancestor_Origin_Flag", "Sym", this, true, 0, 1 );
+    m_SymPlanFlag.Init( "Sym_Planar_Flag", "Sym", this, 0, 0, SYM_XY | SYM_XZ | SYM_YZ );
+    m_SymAxFlag.Init( "Sym_Axial_Flag", "Sym", this, 0, 0, SYM_ROT_Z );
     m_SymRotN.Init( "Sym_Rot_N", "Sym", this, 2, 2, 1000 );
 
     // Mass Properties
@@ -741,20 +807,38 @@ Geom::Geom( Vehicle* vehicle_ptr ) : GeomXForm( vehicle_ptr )
     m_NegativeVolumeFlag.Init( "Negative_Volume_Flag", "Negative_Volume_Props", this, false, 0, 1);
 
     // End Cap Options
-    m_CapUMinOption.Init("CapUMinOption", "EndCap", this, VspSurf::NO_END_CAP, VspSurf::NO_END_CAP, VspSurf::NUM_END_CAP_OPTIONS-1);
+    m_CapUMinOption.Init("CapUMinOption", "EndCap", this, NO_END_CAP, NO_END_CAP, NUM_END_CAP_OPTIONS-1);
     m_CapUMinOption.SetDescript("Type of End Cap on UMin end");
+
+    m_CapUMinLength.Init( "CapUMinLength", "EndCap", this, 1, 0, 20 );
+    m_CapUMinLength.SetDescript( "Scaled length of end cap" );
+    m_CapUMinOffset.Init( "CapUMinOffset", "EndCap", this, 0, -20, 20 );
+    m_CapUMinOffset.SetDescript( "Scaled offset of end cap" );
+    m_CapUMinStrength.Init( "CapUMinStrength", "EndCap", this, 0.5, 0, 1 );
+    m_CapUMinStrength.SetDescript( "Tangent strength of end cap" );
+    m_CapUMinSweepFlag.Init( "CapUMinSweepFlag", "EndCap", this, 0, 0, 1 );
+    m_CapUMinSweepFlag.SetDescript( "Flag to stretch end cap length for sweep" );
 
     m_CapUMinTess.Init("CapUMinTess", "EndCap", this, 3, 3, 51);
     m_CapUMinTess.SetDescript("Number of tessellated curves on capped ends");
     m_CapUMinTess.SetMultShift(2, 1);
 
-    m_CapUMaxOption.Init("CapUMaxOption", "EndCap", this, VspSurf::NO_END_CAP, VspSurf::NO_END_CAP, VspSurf::NUM_END_CAP_OPTIONS-1);
+    m_CapUMaxOption.Init("CapUMaxOption", "EndCap", this, NO_END_CAP, NO_END_CAP, NUM_END_CAP_OPTIONS-1);
     m_CapUMaxOption.SetDescript("Type of End Cap on UMax end");
 
-    m_CapWMinOption.Init("CapWMinOption", "EndCap", this, VspSurf::NO_END_CAP, VspSurf::NO_END_CAP, VspSurf::NUM_END_CAP_OPTIONS-1);
+    m_CapUMaxLength.Init( "CapUMaxLength", "EndCap", this, 1, 0, 20 );
+    m_CapUMaxLength.SetDescript( "Scaled length of end cap" );
+    m_CapUMaxOffset.Init( "CapUMaxOffset", "EndCap", this, 0, -20, 20 );
+    m_CapUMaxOffset.SetDescript( "Scaled offset of end cap" );
+    m_CapUMaxStrength.Init( "CapUMaxStrength", "EndCap", this, 0.5, 0, 1 );
+    m_CapUMaxStrength.SetDescript( "Tangent strength of end cap" );
+    m_CapUMaxSweepFlag.Init( "CapUMaxSweepFlag", "EndCap", this, 0, 0, 1 );
+    m_CapUMaxSweepFlag.SetDescript( "Flag to stretch end cap length for sweep" );
+
+    m_CapWMinOption.Init("CapWMinOption", "EndCap", this, NO_END_CAP, NO_END_CAP, NUM_END_CAP_OPTIONS-1);
     m_CapWMinOption.SetDescript("Type of End Cap on WMin end");
 
-    m_CapWMaxOption.Init("CapWMaxOption", "EndCap", this, VspSurf::NO_END_CAP, VspSurf::NO_END_CAP, VspSurf::NUM_END_CAP_OPTIONS-1);
+    m_CapWMaxOption.Init("CapWMaxOption", "EndCap", this, NO_END_CAP, NO_END_CAP, NUM_END_CAP_OPTIONS-1);
     m_CapWMaxOption.SetDescript("Type of End Cap on WMax end");
 
     // Geom needs at least one surf
@@ -1029,7 +1113,7 @@ void Geom::UpdateEndCaps()
     m_CapWMinSuccess.resize( nmain );
     m_CapWMaxSuccess.resize( nmain );
 
-	// cycle through all vspsurfs, check if wing type then cap using new Code-Eli cap surface creator
+    // cycle through all vspsurfs, check if wing type then cap using new Code-Eli cap surface creator
     for ( int i = 0; i < nmain; i++ )
     {
         m_CapUMinSuccess[i] = false;
@@ -1038,10 +1122,44 @@ void Geom::UpdateEndCaps()
         m_CapWMaxSuccess[i] = false;
 
         // NOTE: These return a bool that is true if it modified the surface to create a cap
-        m_CapUMinSuccess[i] = m_MainSurfVec[i].CapUMin(m_CapUMinOption());
-        m_CapUMaxSuccess[i] = m_MainSurfVec[i].CapUMax(m_CapUMaxOption());
+        m_CapUMinSuccess[i] = m_MainSurfVec[i].CapUMin(m_CapUMinOption(), m_CapUMinLength(), m_CapUMinStrength(), m_CapUMinOffset(), m_CapUMinSweepFlag());
+        m_CapUMaxSuccess[i] = m_MainSurfVec[i].CapUMax(m_CapUMaxOption(), m_CapUMaxLength(), m_CapUMaxStrength(), m_CapUMaxOffset(), m_CapUMaxSweepFlag());
         m_CapWMinSuccess[i] = m_MainSurfVec[i].CapWMin(m_CapWMinOption());
         m_CapWMaxSuccess[i] = m_MainSurfVec[i].CapWMax(m_CapWMaxOption());
+    }
+
+    switch( m_CapUMinOption() ){
+        case NO_END_CAP:
+        case FLAT_END_CAP:
+            m_CapUMinLength = 1.0;
+            m_CapUMinOffset = 0.0;
+            m_CapUMinStrength = 0.5;
+            break;
+        case ROUND_END_CAP:
+            m_CapUMinStrength = 1.0;
+            break;
+        case EDGE_END_CAP:
+            m_CapUMinStrength = 0.0;
+            break;
+        case SHARP_END_CAP:
+            break;
+    }
+
+    switch( m_CapUMaxOption() ){
+        case NO_END_CAP:
+        case FLAT_END_CAP:
+            m_CapUMaxLength = 1.0;
+            m_CapUMaxOffset = 0.0;
+            m_CapUMaxStrength = 0.5;
+            break;
+        case ROUND_END_CAP:
+            m_CapUMaxStrength = 1.0;
+            break;
+        case EDGE_END_CAP:
+            m_CapUMaxStrength = 0.0;
+            break;
+        case SHARP_END_CAP:
+            break;
     }
 }
 
@@ -1261,6 +1379,108 @@ void Geom::UpdateFlags( )
     }
 }
 
+void Geom::WriteFeatureLinesDXF( FILE * file_name, const BndBox &dxfbox )
+{
+    double tol = 10e-2;
+
+    Vehicle *veh = VehicleMgr.GetVehicle();
+
+    vec3d shiftvec = dxfbox.GetMax() - dxfbox.GetMin();
+
+    for ( int i = 0 ; i < ( int )m_SurfVec.size() ; i++ )
+    {
+        vector < vector < vec3d > > allflines;
+        vector < vector < vec3d > > allflines1;
+        vector < vector < vec3d > > allflines2;
+        vector < vector < vec3d > > allflines3;
+        vector < vector < vec3d > > allflines4;
+
+        if( m_GuiDraw.GetDispFeatureFlag() )
+        {
+            int nu = m_SurfVec[i].GetNumUFeature();
+            int nw = m_SurfVec[i].GetNumWFeature();
+            allflines.resize( nu + nw );
+            for( int j = 0; j < nu; j++ )
+            {
+                m_SurfVec[i].TessUFeatureLine( j, allflines[ j ], tol );
+            }
+
+            for( int j = 0; j < nw; j++ )
+            {
+                m_SurfVec[i].TessWFeatureLine( j, allflines[ j + nu ], tol );
+            }
+        }
+        string layer = m_Name + string ( "_" ) + to_string( i );
+
+        if ( veh->m_2D3DFlag() == vsp::DIMENSION_SET::SET_3D )
+        {
+            WriteDXFPolylines3D( file_name, allflines, layer );
+        }
+        else if ( veh->m_2D3DFlag() == vsp::DIMENSION_SET::SET_2D )
+        {
+            if ( veh->m_2DView() == vsp::VIEW_NUM::VIEW_1 )
+            {
+                allflines1 = allflines;
+                DXFManipulate( allflines1, dxfbox, veh->m_4View1(), veh->m_4View1_rot() );
+                WriteDXFPolylines2D( file_name, allflines1, layer );
+            }
+            else if ( veh->m_2DView() == vsp::VIEW_NUM::VIEW_2HOR )
+            {
+                allflines1 = allflines;
+                DXFManipulate( allflines1, dxfbox, veh->m_4View1(), veh->m_4View1_rot() );
+                DXFShift( allflines1, shiftvec, vsp::VIEW_SHIFT::LEFT, veh->m_4View1_rot(), 0 );
+
+                allflines2 = allflines;
+                DXFManipulate( allflines2, dxfbox, veh->m_4View2(), veh->m_4View2_rot() );
+                DXFShift( allflines2, shiftvec, vsp::VIEW_SHIFT::RIGHT, veh->m_4View2_rot(), 0 );
+
+                WriteDXFPolylines2D( file_name, allflines1, layer );
+                WriteDXFPolylines2D( file_name, allflines2, layer );
+            }
+            else if ( veh->m_2DView() == vsp::VIEW_NUM::VIEW_2VER )
+            {
+                allflines1 = allflines;
+                DXFManipulate( allflines1, dxfbox, veh->m_4View1(), veh->m_4View1_rot() );
+                DXFShift( allflines1, shiftvec, vsp::VIEW_SHIFT::UP, veh->m_4View1_rot(), 0 );
+
+                allflines3 = allflines;
+                DXFManipulate( allflines3, dxfbox, veh->m_4View3(), veh->m_4View3_rot() );
+                DXFShift( allflines3, shiftvec, vsp::VIEW_SHIFT::DOWN, veh->m_4View3_rot(), 0 );
+
+                WriteDXFPolylines2D( file_name, allflines1, layer );
+                WriteDXFPolylines2D( file_name, allflines3, layer );
+            }
+            else if ( veh->m_2DView() == vsp::VIEW_NUM::VIEW_4 )
+            {
+                allflines1 = allflines;
+                DXFManipulate( allflines1, dxfbox, veh->m_4View1(), veh->m_4View1_rot() );
+                DXFShift( allflines1, shiftvec, vsp::VIEW_SHIFT::UP, veh->m_4View1_rot(), veh->m_4View2_rot() );
+                DXFShift( allflines1, shiftvec, vsp::VIEW_SHIFT::LEFT, veh->m_4View1_rot(), veh->m_4View3_rot() );
+
+                allflines2 = allflines;
+                DXFManipulate( allflines2, dxfbox, veh->m_4View2(), veh->m_4View2_rot() );
+                DXFShift( allflines2, shiftvec, vsp::VIEW_SHIFT::UP, veh->m_4View2_rot(), veh->m_4View1_rot() );
+                DXFShift( allflines2, shiftvec, vsp::VIEW_SHIFT::RIGHT, veh->m_4View2_rot(), veh->m_4View4_rot() );
+
+                allflines3 = allflines;
+                DXFManipulate( allflines3, dxfbox, veh->m_4View3(), veh->m_4View3_rot() );
+                DXFShift( allflines3, shiftvec, vsp::VIEW_SHIFT::DOWN, veh->m_4View3_rot(), veh->m_4View4_rot() );
+                DXFShift( allflines3, shiftvec, vsp::VIEW_SHIFT::LEFT, veh->m_4View3_rot(), veh->m_4View1_rot() );
+
+                allflines4 = allflines;
+                DXFManipulate( allflines4, dxfbox, veh->m_4View4(), veh->m_4View4_rot() );
+                DXFShift( allflines4, shiftvec, vsp::VIEW_SHIFT::DOWN, veh->m_4View4_rot(), veh->m_4View3_rot() );
+                DXFShift( allflines4, shiftvec, vsp::VIEW_SHIFT::RIGHT, veh->m_4View4_rot(), veh->m_4View2_rot() );
+
+                WriteDXFPolylines2D( file_name, allflines1, layer );
+                WriteDXFPolylines2D( file_name, allflines2, layer );
+                WriteDXFPolylines2D( file_name, allflines3, layer );
+                WriteDXFPolylines2D( file_name, allflines4, layer );
+            }
+        }
+    }
+}
+
 void Geom::UpdateDrawObj()
 {
     m_FeatureDrawObj_vec.clear();
@@ -1345,6 +1565,19 @@ void Geom::UpdateDrawObj()
 
     //==== Bounding Box ====//
     m_HighlightDrawObj.m_PntVec = m_BBox.GetBBoxDrawLines();
+
+    //=== Axis ===//
+    m_AxisDrawObj_vec.clear();
+    m_AxisDrawObj_vec.resize( 3 );
+    for ( int i = 0; i < 3; i++ )
+    {
+        MakeDashedLine( m_AttachOrigin,  m_AttachAxis[i], 4, m_AxisDrawObj_vec[i].m_PntVec );
+        vec3d c;
+        c.v[i] = 1.0;
+        m_AxisDrawObj_vec[i].m_LineColor = c;
+        m_AxisDrawObj_vec[i].m_GeomChanged = true;
+    }
+
 }
 
 //==== Encode Data Into XML Data Struct ====//
@@ -1844,6 +2077,17 @@ void Geom::LoadDrawObjs( vector< DrawObj* > & draw_obj_vec )
         m_HighlightDrawObj.m_LineColor = vec3d( 1.0, 0., 0.0 );
         m_HighlightDrawObj.m_Type = DrawObj::VSP_LINES;
         draw_obj_vec.push_back( &m_HighlightDrawObj );
+
+        for ( int i = 0; i < m_AxisDrawObj_vec.size(); i++ )
+        {
+            m_AxisDrawObj_vec[i].m_Screen = DrawObj::VSP_MAIN_SCREEN;
+            sprintf( str, "_%d", i );
+            m_AxisDrawObj_vec[i].m_GeomID = m_ID + "Axis_" + str;
+            m_AxisDrawObj_vec[i].m_LineWidth = 2.0;
+            m_AxisDrawObj_vec[i].m_Type = DrawObj::VSP_LINES;
+            draw_obj_vec.push_back( &m_AxisDrawObj_vec[i] );
+        }
+
     }
 
     // Load Feature Lines
@@ -1907,19 +2151,19 @@ void Geom::CreateDegenGeom( vector<DegenGeom> &dgs)
     for ( int i = 0 ; i < ( int )m_SurfVec.size() ; i++ )
     {
         m_SurfVec[i].ResetUWSkip();
-        if ( m_CapUMinOption() == VspSurf::FLAT_END_CAP && m_CapUMinSuccess[ m_SurfIndxVec[i] ] )
+        if ( m_CapUMinSuccess[ m_SurfIndxVec[i] ] )
         {
             m_SurfVec[i].SetUSkipFirst( true );
         }
-        if ( m_CapUMaxOption() == VspSurf::FLAT_END_CAP && m_CapUMaxSuccess[ m_SurfIndxVec[i] ] )
+        if ( m_CapUMaxSuccess[ m_SurfIndxVec[i] ] )
         {
             m_SurfVec[i].SetUSkipLast( true );
         }
-        if ( m_CapWMinOption() == VspSurf::FLAT_END_CAP && m_CapWMinSuccess[ m_SurfIndxVec[i] ] )
+        if ( m_CapWMinSuccess[ m_SurfIndxVec[i] ] )
         {
             m_SurfVec[i].SetWSkipFirst( true );
         }
-        if ( m_CapWMaxOption() == VspSurf::FLAT_END_CAP && m_CapWMaxSuccess[ m_SurfIndxVec[i] ] )
+        if ( m_CapWMaxSuccess[ m_SurfIndxVec[i] ] )
         {
             m_SurfVec[i].SetWSkipLast( true );
         }
@@ -2051,6 +2295,28 @@ vec3d Geom::GetUWPt( const int &indx, const double &u, const double &w )
     return GetSurfPtr( indx )->CompPnt01( u, w );
 }
 
+bool Geom::CompRotCoordSys( const double &u, const double &w, Matrix4d &rotMat )
+{
+    VspSurf* surf_ptr = GetSurfPtr();
+    if ( surf_ptr )
+    {
+        rotMat = surf_ptr->CompRotCoordSys( u, w );
+        return true;
+    }
+    return false;
+}
+
+bool Geom::CompTransCoordSys( const double &u, const double &w, Matrix4d &transMat )
+{
+    VspSurf* surf_ptr = GetSurfPtr();
+    if ( surf_ptr )
+    {
+        transMat = surf_ptr->CompTransCoordSys( u, w );
+        return true;
+    }
+    return false;
+}
+
 void Geom::WriteXSecFile( int geom_no, FILE* dump_file )
 {
     for ( int i = 0 ; i < ( int )m_SurfVec.size() ; i++ )
@@ -2118,7 +2384,12 @@ void Geom::WritePLOT3DFileXYZ( FILE* dump_file )
         {
             for ( int k = 0 ; k < ( int )pnts[j].size() ; k++ )
             {
-                fprintf( dump_file, "%25.17e ", pnts[j][k].x() );
+                int kflip = k;
+                if ( !m_SurfVec[i].GetFlipNormal() )
+                {
+                    kflip = pnts[j].size() - 1 - k;
+                }
+                fprintf( dump_file, "%25.17e ", pnts[j][kflip].x() );
             }
         }
         fprintf( dump_file, "\n" );
@@ -2126,7 +2397,12 @@ void Geom::WritePLOT3DFileXYZ( FILE* dump_file )
         {
             for ( int k = 0 ; k < ( int )pnts[j].size() ; k++ )
             {
-                fprintf( dump_file, "%25.17e ", pnts[j][k].y() );
+                int kflip = k;
+                if ( !m_SurfVec[i].GetFlipNormal() )
+                {
+                    kflip = pnts[j].size() - 1 - k;
+                }
+                fprintf( dump_file, "%25.17e ", pnts[j][kflip].y() );
             }
         }
         fprintf( dump_file, "\n" );
@@ -2134,7 +2410,12 @@ void Geom::WritePLOT3DFileXYZ( FILE* dump_file )
         {
             for ( int k = 0 ; k < ( int )pnts[j].size() ; k++ )
             {
-                fprintf( dump_file, "%25.17e ", pnts[j][k].z() );
+                int kflip = k;
+                if ( !m_SurfVec[i].GetFlipNormal() )
+                {
+                    kflip = pnts[j].size() - 1 - k;
+                }
+                fprintf( dump_file, "%25.17e ", pnts[j][kflip].z() );
             }
         }
         fprintf( dump_file, "\n" );
@@ -2143,8 +2424,8 @@ void Geom::WritePLOT3DFileXYZ( FILE* dump_file )
 
 void Geom::CreateGeomResults( Results* res )
 {
-    res->Add( ResData( "Type", vsp::GEOM_XSECS ) );
-    res->Add( ResData( "Num_Surfs", ( int )m_SurfVec.size() ) );
+    res->Add( NameValData( "Type", vsp::GEOM_XSECS ) );
+    res->Add( NameValData( "Num_Surfs", ( int )m_SurfVec.size() ) );
 
     for ( int i = 0 ; i < ( int )m_SurfVec.size() ; i++ )
     {
@@ -2153,11 +2434,11 @@ void Geom::CreateGeomResults( Results* res )
         vector< vector< vec3d > > norms;
         UpdateTesselate( i, pnts, norms, false );
 
-        res->Add( ResData( "Num_XSecs", static_cast<int>( pnts.size() ) ) );
+        res->Add( NameValData( "Num_XSecs", static_cast<int>( pnts.size() ) ) );
 
         if ( pnts.size() )
         {
-            res->Add( ResData( "Num_Pnts_Per_XSec", static_cast<int>( pnts[0].size() ) ) );
+            res->Add( NameValData( "Num_Pnts_Per_XSec", static_cast<int>( pnts[0].size() ) ) );
         }
 
         //==== Write XSec Data ====//
@@ -2168,7 +2449,7 @@ void Geom::CreateGeomResults( Results* res )
             {
                 xsec_vec.push_back(  pnts[j][k] );
             }
-            res->Add( ResData( "XSec_Pnts", xsec_vec ) );
+            res->Add( NameValData( "XSec_Pnts", xsec_vec ) );
         }
     }
 }
@@ -2730,7 +3011,7 @@ void GeomXSec::UpdateDrawObj()
         XSec* xs = m_XSecSurf.FindXSec( i );
         if ( xs )
         {
-            m_XSecDrawObj_vec[i].m_PntVec = xs->GetDrawLines( m_TessW(), relTrans );
+            m_XSecDrawObj_vec[i].m_PntVec = xs->GetDrawLines( relTrans );
         }
         else
         {
@@ -2742,7 +3023,7 @@ void GeomXSec::UpdateDrawObj()
     XSec* axs = m_XSecSurf.FindXSec( m_ActiveXSec );
     if ( axs )
     {
-        m_HighlightXSecDrawObj.m_PntVec = axs->GetDrawLines( m_TessW(), relTrans );
+        m_HighlightXSecDrawObj.m_PntVec = axs->GetDrawLines( relTrans );
 
         double w = axs->GetXSecCurve()->GetWidth();
         double h = axs->GetXSecCurve()->GetHeight();
